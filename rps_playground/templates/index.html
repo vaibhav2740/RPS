@@ -142,6 +142,17 @@
             50% { opacity: 0.3; }
         }
 
+        /* ===== INLINE SVG ICONS ===== */
+        .ico {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            vertical-align: -0.125em;
+            fill: currentColor;
+            flex-shrink: 0;
+        }
+        .ico-lg { width: 1.2em; height: 1.2em; vertical-align: -0.15em; }
+
         /* ===== TAB NAVIGATION ===== */
         .tabs {
             display: flex;
@@ -665,18 +676,57 @@
     </style>
 </head>
 <body>
+    <!-- SVG Sprite Sheet (hidden) -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+        <defs>
+            <linearGradient id="rpsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#06b6d4"/>
+                <stop offset="50%" stop-color="#8b5cf6"/>
+                <stop offset="100%" stop-color="#ec4899"/>
+            </linearGradient>
+        </defs>
+        <!-- Swords / Battle -->
+        <symbol id="ico-swords" viewBox="0 0 24 24">
+            <path d="M6.2 2L2 6.2l1.4 1.4L4.8 6.2l5 5-1.4 1.4-5-5L2 9l-1.4-1.4L6.2 2zM17.8 2L22 6.2l-1.4 1.4-1.4-1.4-5 5 1.4 1.4 5-5L22 9l1.4-1.4L17.8 2zM12 10.6l-1.4 1.4 3 3-3.6 3.6V21h2.4l3.6-3.6 3 3 1.4-1.4-8.4-8.4zM3.6 21H6l3.6-3.6-2.4-2.4L3.6 18.6V21z" fill="url(#rpsGrad)"/>
+        </symbol>
+        <!-- Trophy -->
+        <symbol id="ico-trophy" viewBox="0 0 24 24">
+            <path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z" fill="url(#rpsGrad)"/>
+        </symbol>
+        <!-- Bot / Target -->
+        <symbol id="ico-bot" viewBox="0 0 24 24">
+            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1H3a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM9 14a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" fill="url(#rpsGrad)"/>
+        </symbol>
+        <!-- Timer / Progress -->
+        <symbol id="ico-timer" viewBox="0 0 24 24">
+            <path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42A8.962 8.962 0 0 0 12 4c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z" fill="url(#rpsGrad)"/>
+        </symbol>
+        <!-- Chart / Leaderboard -->
+        <symbol id="ico-chart" viewBox="0 0 24 24">
+            <path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z" fill="url(#rpsGrad)"/>
+        </symbol>
+        <!-- Grid / Matrix -->
+        <symbol id="ico-grid" viewBox="0 0 24 24">
+            <path d="M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z" fill="url(#rpsGrad)"/>
+        </symbol>
+        <!-- Crosshair / Results -->
+        <symbol id="ico-target" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm-1-13h2v2h-2zm0 4h2v6h-2z" fill="url(#rpsGrad)"/>
+        </symbol>
+        <symbol id="ico-target2" viewBox="0 0 24 24">
+            <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z" fill="url(#rpsGrad)"/>
+        </symbol>
+        <!-- Code / Flask -->
+        <symbol id="ico-flask" viewBox="0 0 24 24">
+            <path d="M9 3V1h6v2h-2v5.59l5 7.12V21H6v-5.29l5-7.12V3H9zm-1 15h8l-4-5.71L8 18z" fill="url(#rpsGrad)"/>
+        </symbol>
+    </svg>
+
     <div class="container">
         <!-- HEADER -->
         <header>
             <div class="logo-row">
                 <svg class="logo-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <linearGradient id="rpsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#06b6d4"/>
-                            <stop offset="50%" stop-color="#8b5cf6"/>
-                            <stop offset="100%" stop-color="#ec4899"/>
-                        </linearGradient>
-                    </defs>
                     <!-- Outer ring -->
                     <circle cx="50" cy="50" r="46" fill="none" stroke="url(#rpsGrad)" stroke-width="3" opacity="0.6"/>
                     <!-- Rock (fist) -->
@@ -700,15 +750,15 @@
 
         <!-- TABS -->
         <nav class="tabs">
-            <button class="tab-btn active" data-tab="h2h" id="tab-h2h">⚔️ Head-to-Head</button>
-            <button class="tab-btn" data-tab="tournament" id="tab-tournament">🏆 Tournament</button>
-            <button class="tab-btn" data-tab="ova" id="tab-ova">🤖 One vs All</button>
+            <button class="tab-btn active" data-tab="h2h" id="tab-h2h"><svg class="ico"><use href="#ico-swords"/></svg> Head-to-Head</button>
+            <button class="tab-btn" data-tab="tournament" id="tab-tournament"><svg class="ico"><use href="#ico-trophy"/></svg> Tournament</button>
+            <button class="tab-btn" data-tab="ova" id="tab-ova"><svg class="ico"><use href="#ico-bot"/></svg> One vs All</button>
         </nav>
 
         <!-- ===== HEAD-TO-HEAD TAB ===== -->
         <div class="tab-content active" id="content-h2h">
             <div class="card">
-                <div class="card-title"><span class="icon">⚔️</span> Head-to-Head Match</div>
+                <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-swords"/></svg></span> Head-to-Head Match</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Algorithm A</label>
@@ -731,7 +781,7 @@
                     </div>
                     <div class="form-group" style="flex:0;">
                         <label>&nbsp;</label>
-                        <button class="btn btn-primary" id="h2h-run" onclick="runH2H()">⚔️ Fight!</button>
+                        <button class="btn btn-primary" id="h2h-run" onclick="runH2H()"><svg class="ico"><use href="#ico-swords"/></svg> Fight!</button>
                     </div>
                 </div>
             </div>
@@ -778,7 +828,7 @@
         <!-- ===== TOURNAMENT TAB ===== -->
         <div class="tab-content" id="content-tournament">
             <div class="card">
-                <div class="card-title"><span class="icon">🏆</span> Full Round-Robin Tournament</div>
+                <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-trophy"/></svg></span> Full Round-Robin Tournament</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Rounds per match</label>
@@ -790,7 +840,7 @@
                     </div>
                     <div class="form-group" style="flex:0;">
                         <label>&nbsp;</label>
-                        <button class="btn btn-primary" id="trn-run" onclick="runTournament()">🏆 Run</button>
+                        <button class="btn btn-primary" id="trn-run" onclick="runTournament()"><svg class="ico"><use href="#ico-trophy"/></svg> Run</button>
                     </div>
                 </div>
             </div>
@@ -802,7 +852,7 @@
 
             <div class="progress-panel" id="trn-progress">
                 <div class="card">
-                    <div class="card-title"><span class="icon">⏳</span> Tournament Progress</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-timer"/></svg></span> Tournament Progress</div>
                     <div class="progress-bar-outer">
                         <div class="progress-bar-inner" id="trn-bar" style="width: 0%"></div>
                         <div class="progress-pct" id="trn-pct">0%</div>
@@ -831,11 +881,11 @@
 
             <div class="result-panel" id="trn-result">
                 <div class="card">
-                    <div class="card-title"><span class="icon">📊</span> Leaderboard</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-chart"/></svg></span> Leaderboard</div>
                     <div class="table-wrapper" id="trn-leaderboard"></div>
                 </div>
                 <div class="card">
-                    <div class="card-title"><span class="icon">🔀</span> Head-to-Head Matrix</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-grid"/></svg></span> Head-to-Head Matrix</div>
                     <div class="matrix-wrapper" id="trn-matrix"></div>
                 </div>
             </div>
@@ -844,7 +894,7 @@
         <!-- ===== ONE VS ALL TAB ===== -->
         <div class="tab-content" id="content-ova">
             <div class="card">
-                <div class="card-title"><span class="icon">🤖</span> One vs All</div>
+                <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-bot"/></svg></span> One vs All</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Your Algorithm</label>
@@ -860,7 +910,7 @@
                     </div>
                     <div class="form-group" style="flex:0;">
                         <label>&nbsp;</label>
-                        <button class="btn btn-primary" id="ova-run" onclick="runOVA()">🤖 Run</button>
+                        <button class="btn btn-primary" id="ova-run" onclick="runOVA()"><svg class="ico"><use href="#ico-bot"/></svg> Run</button>
                     </div>
                 </div>
             </div>
@@ -872,7 +922,7 @@
 
             <div class="progress-panel" id="ova-progress">
                 <div class="card">
-                    <div class="card-title"><span class="icon">⏳</span> One vs All Progress</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-timer"/></svg></span> One vs All Progress</div>
                     <div class="progress-bar-outer">
                         <div class="progress-bar-inner" id="ova-bar" style="width: 0%"></div>
                         <div class="progress-pct" id="ova-pct">0%</div>
@@ -901,17 +951,17 @@
 
             <div class="result-panel" id="ova-result">
                 <div class="card">
-                    <div class="card-title"><span class="icon">🎯</span> Match Results</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-target2"/></svg></span> Match Results</div>
                     <div class="matchup-grid" id="ova-matchups"></div>
                 </div>
                 <div class="card">
-                    <div class="card-title"><span class="icon">📊</span> Rankings</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-chart"/></svg></span> Rankings</div>
                     <div class="table-wrapper" id="ova-leaderboard"></div>
                 </div>
             </div>
         </div>
 
-        <footer>RPS Playground · Built with 🐍 Python + Flask</footer>
+        <footer>RPS Playground · Built with <svg class="ico" style="color:#06b6d4"><use href="#ico-flask"/></svg> Python + Flask</footer>
     </div>
 
     <script>
@@ -1006,10 +1056,10 @@
             // Winner
             const winEl = document.getElementById('h2h-winner');
             if (data.winner === 'DRAW') {
-                winEl.textContent = '🤝 Draw!';
+                winEl.innerHTML = '<svg class="ico" style="width:1.3em;height:1.3em;vertical-align:-0.2em"><use href="#ico-swords"/></svg> Draw!';
                 winEl.className = 'result-winner draw';
             } else {
-                winEl.textContent = `🏆 ${data.winner} Wins!`;
+                winEl.innerHTML = `<svg class="ico" style="width:1.3em;height:1.3em;vertical-align:-0.2em"><use href="#ico-trophy"/></svg> ${data.winner} Wins!`;
                 winEl.className = 'result-winner win';
             }
 
