@@ -23,14 +23,59 @@ BEATS = {
 # What beats each move
 BEATEN_BY = {v: k for k, v in BEATS.items()}
 
+# Pre-computed winner table: (move_a, move_b) → outcome
+# Eliminates function call + branching from the hot loop
+_WINNER_TABLE = {
+    (Move.ROCK, Move.ROCK): 0,
+    (Move.ROCK, Move.PAPER): -1,
+    (Move.ROCK, Move.SCISSORS): 1,
+    (Move.PAPER, Move.ROCK): 1,
+    (Move.PAPER, Move.PAPER): 0,
+    (Move.PAPER, Move.SCISSORS): -1,
+    (Move.SCISSORS, Move.ROCK): -1,
+    (Move.SCISSORS, Move.PAPER): 1,
+    (Move.SCISSORS, Move.SCISSORS): 0,
+}
+
 
 def determine_winner(move_a: Move, move_b: Move) -> int:
     """Return 1 if A wins, -1 if B wins, 0 for draw."""
-    if move_a == move_b:
-        return 0
-    if BEATS[move_a] == move_b:
-        return 1
-    return -1
+    return _WINNER_TABLE[move_a, move_b]
+
+
+class _FrozenHistory:
+    """O(1) immutable view of a move history list.
+
+    Wraps a reference to the engine's internal history list without
+    copying.  Supports all read operations that algorithms use
+    (indexing, slicing, iteration, len, Counter, ``in``, bool) but
+    prevents accidental mutation (no append / pop / insert methods).
+
+    Created ONCE before the match loop and reused every round — the
+    view automatically sees new moves as the underlying list grows.
+    """
+    __slots__ = ('_data',)
+
+    def __init__(self, data: list):
+        self._data = data
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __len__(self):
+        return len(self._data)
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __contains__(self, item):
+        return item in self._data
+
+    def __bool__(self):
+        return bool(self._data)
+
+    def __repr__(self):
+        return f"FrozenHistory({self._data!r})"
 
 
 @dataclass
@@ -123,25 +168,61 @@ def run_match(
         rounds=rounds,
     )
 
+    # Internal mutable lists — only the engine appends to these
     a_history: list[Move] = []
     b_history: list[Move] = []
 
-    for round_num in range(rounds):
-        move_a = algo_a.choose(round_num, tuple(a_history), tuple(b_history))
-        move_b = algo_b.choose(round_num, tuple(b_history), tuple(a_history))
+    # Immutable views shared with algorithms — created ONCE, O(1)
+    # They automatically see new moves as the underlying lists grow
+    a_frozen = _FrozenHistory(a_history)
+    b_frozen = _FrozenHistory(b_history)
 
-        outcome = determine_winner(move_a, move_b)
-        if outcome == 1:
-            result.a_wins += 1
-        elif outcome == -1:
-            result.b_wins += 1
-        else:
-            result.draws += 1
+    # Local references for the hot loop (avoid repeated dict/attr lookups)
+    winner_table = _WINNER_TABLE
+    a_choose = algo_a.choose
+    b_choose = algo_b.choose
+    a_wins = 0
+    b_wins = 0
+    draws = 0
 
-        a_history.append(move_a)
-        b_history.append(move_b)
-        if record_moves:
-            result.a_moves.append(move_a)
-            result.b_moves.append(move_b)
+    if record_moves:
+        a_moves_list = result.a_moves
+        b_moves_list = result.b_moves
+        for round_num in range(rounds):
+            move_a = a_choose(round_num, a_frozen, b_frozen)
+            move_b = b_choose(round_num, b_frozen, a_frozen)
 
+            outcome = winner_table[move_a, move_b]
+            if outcome == 1:
+                a_wins += 1
+            elif outcome == -1:
+                b_wins += 1
+            else:
+                draws += 1
+
+            a_history.append(move_a)
+            b_history.append(move_b)
+            a_moves_list.append(move_a)
+            b_moves_list.append(move_b)
+    else:
+        # No move recording — tighter loop for bulk tournament runs
+        for round_num in range(rounds):
+            move_a = a_choose(round_num, a_frozen, b_frozen)
+            move_b = b_choose(round_num, b_frozen, a_frozen)
+
+            outcome = winner_table[move_a, move_b]
+            if outcome == 1:
+                a_wins += 1
+            elif outcome == -1:
+                b_wins += 1
+            else:
+                draws += 1
+
+            a_history.append(move_a)
+            b_history.append(move_b)
+
+    result.a_wins = a_wins
+    result.b_wins = b_wins
+    result.draws = draws
     return result
+

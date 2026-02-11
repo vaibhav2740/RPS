@@ -95,7 +95,7 @@ def api_one_vs_all():
 
     custom = get_algorithm_by_name(algo_name)
     pool = get_all_algorithms()
-    results = one_vs_all(custom, pool, rounds=rounds, seed=seed)
+    results = one_vs_all(custom, pool, rounds=rounds, seed=seed, parallel=True)
     leaderboard = compute_leaderboard(results)
 
     # Also compute per-opponent results for the selected algo
