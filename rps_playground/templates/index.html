@@ -8,6 +8,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Animation Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles-engine@2.12.0/tsparticles.engine.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles-slim@2.12.0/tsparticles.slim.bundle.min.js" defer></script>
     <style>
         /* ===== RESET & BASE ===== */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -45,14 +49,20 @@
         }
 
         /* ===== BACKGROUND EFFECTS ===== */
+        #particles-bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
         body::before {
             content: '';
             position: fixed;
             inset: 0;
             background:
-                radial-gradient(ellipse 80% 60% at 20% 10%, rgba(6, 182, 212, 0.08), transparent),
-                radial-gradient(ellipse 60% 50% at 80% 80%, rgba(139, 92, 246, 0.08), transparent),
-                radial-gradient(ellipse 40% 40% at 50% 50%, rgba(236, 72, 153, 0.04), transparent);
+                radial-gradient(ellipse 80% 60% at 20% 10%, rgba(6, 182, 212, 0.06), transparent),
+                radial-gradient(ellipse 60% 50% at 80% 80%, rgba(139, 92, 246, 0.06), transparent),
+                radial-gradient(ellipse 40% 40% at 50% 50%, rgba(236, 72, 153, 0.03), transparent);
             pointer-events: none;
             z-index: 0;
         }
@@ -194,13 +204,8 @@
         }
 
         /* ===== TAB CONTENT ===== */
-        .tab-content { display: none; animation: fadeSlideUp 0.4s ease; }
+        .tab-content { display: none; }
         .tab-content.active { display: block; }
-
-        @keyframes fadeSlideUp {
-            from { opacity: 0; transform: translateY(16px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
 
         /* ===== GLASS CARD ===== */
         .card {
@@ -212,11 +217,14 @@
             padding: 32px;
             margin-bottom: 24px;
             box-shadow: var(--shadow-lg);
-            transition: var(--transition);
+            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        border-color var(--transition),
+                        box-shadow var(--transition);
         }
         .card:hover {
-            border-color: rgba(255,255,255,0.12);
+            border-color: rgba(255,255,255,0.14);
             box-shadow: var(--shadow-lg), var(--shadow-glow);
+            transform: translateY(-3px);
         }
         .card-title {
             font-size: 1.15rem;
@@ -270,7 +278,7 @@
         }
         select:focus, input[type="number"]:focus {
             border-color: var(--accent-cyan);
-            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15), 0 0 20px rgba(6, 182, 212, 0.08);
         }
         select option {
             background: #1e293b;
@@ -298,10 +306,10 @@
             box-shadow: 0 4px 20px rgba(6, 182, 212, 0.3);
         }
         .btn-primary:hover {
-            transform: translateY(-2px);
+            transform: translateY(-2px) scale(1.02);
             box-shadow: 0 8px 30px rgba(6, 182, 212, 0.4);
         }
-        .btn-primary:active { transform: translateY(0); }
+        .btn-primary:active { transform: translateY(1px) scale(0.97); transition: 0.08s; }
         .btn-primary:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -676,6 +684,9 @@
     </style>
 </head>
 <body>
+    <!-- Particle Background -->
+    <div id="particles-bg"></div>
+
     <!-- SVG Sprite Sheet (hidden) -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
         <defs>
@@ -968,22 +979,142 @@
         // ===== STATE =====
         let algorithms = [];
 
+        // ===== PARTICLES INIT =====
+        function initParticles() {
+            if (typeof tsParticles === 'undefined') {
+                // Retry after CDN loads
+                setTimeout(initParticles, 200);
+                return;
+            }
+            tsParticles.load('particles-bg', {
+                fpsLimit: 60,
+                particles: {
+                    number: { value: 40, density: { enable: true, area: 1200 } },
+                    color: { value: ['#06b6d4', '#8b5cf6', '#ec4899'] },
+                    shape: { type: 'circle' },
+                    opacity: { value: { min: 0.1, max: 0.35 }, animation: { enable: true, speed: 0.8, minimumValue: 0.05 } },
+                    size: { value: { min: 1.5, max: 4 }, animation: { enable: true, speed: 1.5, minimumValue: 0.5 } },
+                    move: {
+                        enable: true, speed: 0.6, direction: 'none', random: true,
+                        straight: false, outModes: 'out',
+                    },
+                    links: {
+                        enable: true, distance: 140, color: '#8b5cf6',
+                        opacity: 0.08, width: 1,
+                    },
+                },
+                interactivity: {
+                    detectsOn: 'window',
+                    events: {
+                        onHover: { enable: true, mode: 'grab' },
+                        resize: true,
+                    },
+                    modes: {
+                        grab: { distance: 160, links: { opacity: 0.2 } },
+                    },
+                },
+                detectRetina: true,
+            });
+        }
+
+        // ===== GSAP HELPERS =====
+        const G = () => typeof gsap !== 'undefined';
+
+        function animateEntrance() {
+            if (!G()) return;
+            gsap.from('header', { opacity: 0, y: -30, duration: 0.7, ease: 'power3.out' });
+            gsap.from('.logo-icon', { opacity: 0, scale: 0.5, rotation: -180, duration: 0.9, ease: 'back.out(1.7)', delay: 0.2 });
+            gsap.from('.logo', { opacity: 0, x: -20, duration: 0.6, ease: 'power2.out', delay: 0.3 });
+            gsap.from('.subtitle-row', { opacity: 0, y: 10, duration: 0.5, ease: 'power2.out', delay: 0.5 });
+            gsap.from('.tabs', { opacity: 0, y: 20, duration: 0.5, ease: 'power2.out', delay: 0.6 });
+            animateCards('#content-h2h');
+        }
+
+        function animateCards(sel) {
+            if (!G()) return;
+            const cards = document.querySelectorAll(sel + ' .card');
+            gsap.fromTo(cards,
+                { opacity: 0, y: 30, scale: 0.97 },
+                { opacity: 1, y: 0, scale: 1, duration: 0.5, stagger: 0.08, ease: 'power2.out' }
+            );
+        }
+
+        function switchTab(tabName) {
+            const outgoing = document.querySelector('.tab-content.active');
+            const incoming = document.getElementById('content-' + tabName);
+            if (outgoing === incoming) return;
+
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            if (G() && outgoing) {
+                gsap.to(outgoing, {
+                    opacity: 0, x: -30, duration: 0.2, ease: 'power2.in',
+                    onComplete: () => {
+                        outgoing.classList.remove('active');
+                        outgoing.style.cssText = '';
+                        incoming.classList.add('active');
+                        gsap.fromTo(incoming,
+                            { opacity: 0, x: 30 },
+                            { opacity: 1, x: 0, duration: 0.35, ease: 'power2.out' }
+                        );
+                        animateCards('#content-' + tabName);
+                    },
+                });
+            } else {
+                if (outgoing) outgoing.classList.remove('active');
+                incoming.classList.add('active');
+            }
+        }
+
+        function animateResultPanel(panelId) {
+            const panel = document.getElementById(panelId);
+            panel.classList.add('visible');
+            if (!G()) return;
+            gsap.fromTo(panel,
+                { opacity: 0, scale: 0.95, y: 20 },
+                { opacity: 1, scale: 1, y: 0, duration: 0.5, ease: 'back.out(1.4)' }
+            );
+            const cards = panel.querySelectorAll('.card');
+            if (cards.length) {
+                gsap.fromTo(cards,
+                    { opacity: 0, y: 20 },
+                    { opacity: 1, y: 0, duration: 0.4, stagger: 0.1, ease: 'power2.out', delay: 0.15 }
+                );
+            }
+        }
+
+        function animateCounter(el, targetVal) {
+            if (!G()) { el.textContent = targetVal.toLocaleString(); return; }
+            const obj = { val: 0 };
+            gsap.to(obj, {
+                val: targetVal, duration: 0.8, ease: 'power2.out',
+                onUpdate: () => { el.textContent = Math.round(obj.val).toLocaleString(); },
+            });
+        }
+
+        function animateLeaderboardRows(containerId) {
+            if (!G()) return;
+            const rows = document.querySelectorAll('#' + containerId + ' tbody tr');
+            gsap.fromTo(rows,
+                { opacity: 0, x: -15 },
+                { opacity: 1, x: 0, duration: 0.3, stagger: 0.03, ease: 'power2.out' }
+            );
+        }
+
         // ===== INIT =====
         document.addEventListener('DOMContentLoaded', async () => {
-            // Load algorithm list
+            initParticles();
+
             const res = await fetch('/api/algorithms');
             algorithms = await res.json();
             populateSelects();
 
-            // Tab switching
             document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                    btn.classList.add('active');
-                    document.getElementById('content-' + btn.dataset.tab).classList.add('active');
-                });
+                btn.addEventListener('click', () => switchTab(btn.dataset.tab));
             });
+
+            animateEntrance();
         });
 
         function populateSelects() {
@@ -994,7 +1125,6 @@
                     const opt = document.createElement('option');
                     opt.value = name;
                     opt.textContent = name;
-                    // Default selection
                     if (id === 'h2h-algo-b' && i === 3) opt.selected = true;
                     sel.appendChild(opt);
                 });
@@ -1067,17 +1197,17 @@
             document.getElementById('h2h-name-a').textContent = m.algo_a;
             document.getElementById('h2h-name-b').textContent = m.algo_b;
 
-            // Stats
-            document.getElementById('h2h-wins-a').textContent = m.a_wins.toLocaleString();
-            document.getElementById('h2h-wins-b').textContent = m.b_wins.toLocaleString();
-            document.getElementById('h2h-losses-a').textContent = m.b_wins.toLocaleString();
-            document.getElementById('h2h-losses-b').textContent = m.a_wins.toLocaleString();
-            document.getElementById('h2h-draws-a').textContent = m.draws.toLocaleString();
-            document.getElementById('h2h-draws-b').textContent = m.draws.toLocaleString();
+            // Animated stat counters
+            animateCounter(document.getElementById('h2h-wins-a'), m.a_wins);
+            animateCounter(document.getElementById('h2h-wins-b'), m.b_wins);
+            animateCounter(document.getElementById('h2h-losses-a'), m.b_wins);
+            animateCounter(document.getElementById('h2h-losses-b'), m.a_wins);
+            animateCounter(document.getElementById('h2h-draws-a'), m.draws);
+            animateCounter(document.getElementById('h2h-draws-b'), m.draws);
             document.getElementById('h2h-winpct-a').textContent = m.a_win_pct + '%';
             document.getElementById('h2h-winpct-b').textContent = m.b_win_pct + '%';
 
-            // Elo
+            // Elo with flash animation
             const eloA = document.getElementById('h2h-elo-a');
             const signA = elo.a.delta >= 0 ? '+' : '';
             eloA.textContent = `${elo.a.rating} (${signA}${elo.a.delta})`;
@@ -1088,7 +1218,16 @@
             eloB.textContent = `${elo.b.rating} (${signB}${elo.b.delta})`;
             eloB.className = 'elo-delta ' + (elo.b.delta >= 0 ? 'positive' : 'negative');
 
-            show('h2h-result');
+            if (G()) {
+                [eloA, eloB].forEach(el => {
+                    gsap.fromTo(el,
+                        { scale: 1.4 },
+                        { scale: 1, duration: 0.6, ease: 'elastic.out(1, 0.5)' }
+                    );
+                });
+            }
+
+            animateResultPanel('h2h-result');
         }
 
         // ===== TOURNAMENT =====
@@ -1137,14 +1276,11 @@
         }
 
         function renderTournament(data) {
-            // Leaderboard table
             document.getElementById('trn-leaderboard').innerHTML = buildLeaderboardTable(data.leaderboard);
-
-            // H2H Matrix
             const names = data.leaderboard.map(e => e.name);
             document.getElementById('trn-matrix').innerHTML = buildMatrixTable(data.matrix, names);
-
-            show('trn-result');
+            animateResultPanel('trn-result');
+            animateLeaderboardRows('trn-leaderboard');
         }
 
         // ===== ONE VS ALL =====
@@ -1194,7 +1330,6 @@
         }
 
         function renderOVA(data) {
-            // Matchups grid
             const grid = document.getElementById('ova-matchups');
             grid.innerHTML = data.matchups.map(m => `
                 <div class="matchup-item">
@@ -1206,10 +1341,16 @@
                 </div>
             `).join('');
 
-            // Leaderboard
             document.getElementById('ova-leaderboard').innerHTML = buildLeaderboardTable(data.leaderboard);
+            animateResultPanel('ova-result');
+            animateLeaderboardRows('ova-leaderboard');
 
-            show('ova-result');
+            if (G()) {
+                gsap.fromTo('#ova-matchups .matchup-item',
+                    { opacity: 0, x: -10 },
+                    { opacity: 1, x: 0, duration: 0.25, stagger: 0.02, ease: 'power2.out', delay: 0.2 }
+                );
+            }
         }
 
         // ===== SHARED RENDERERS =====
@@ -1264,3 +1405,4 @@
     </script>
 </body>
 </html>
+
