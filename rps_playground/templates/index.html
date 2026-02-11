@@ -504,6 +504,90 @@
             font-size: 0.9rem;
         }
 
+        /* ===== PROGRESS PANEL ===== */
+        .progress-panel {
+            display: none;
+            animation: fadeSlideUp 0.4s ease;
+        }
+        .progress-panel.visible { display: block; }
+        .progress-bar-outer {
+            width: 100%;
+            height: 28px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid var(--border-glass);
+            margin-bottom: 16px;
+            position: relative;
+        }
+        .progress-bar-inner {
+            height: 100%;
+            background: var(--gradient-main);
+            border-radius: 14px;
+            transition: width 0.3s ease;
+            min-width: 0%;
+            position: relative;
+        }
+        .progress-bar-inner::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            animation: shimmer 2s ease infinite;
+        }
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .progress-pct {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            z-index: 1;
+        }
+        .progress-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .progress-stat {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-glass);
+            padding: 12px 16px;
+        }
+        .progress-stat-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        .progress-stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .progress-match {
+            text-align: center;
+            padding: 8px 0;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        .progress-match strong {
+            color: var(--accent-cyan);
+        }
+
         /* ===== FOOTER ===== */
         footer {
             text-align: center;
@@ -632,7 +716,36 @@
 
             <div class="spinner" id="trn-spinner">
                 <div class="spinner-ring"></div>
-                <div class="spinner-text">Running matches...</div>
+                <div class="spinner-text">Starting tournament...</div>
+            </div>
+
+            <div class="progress-panel" id="trn-progress">
+                <div class="card">
+                    <div class="card-title"><span class="icon">⏳</span> Tournament Progress</div>
+                    <div class="progress-bar-outer">
+                        <div class="progress-bar-inner" id="trn-bar" style="width: 0%"></div>
+                        <div class="progress-pct" id="trn-pct">0%</div>
+                    </div>
+                    <div class="progress-stats">
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Matches Completed</div>
+                            <div class="progress-stat-value" id="trn-count">0 / 0</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Elapsed</div>
+                            <div class="progress-stat-value" id="trn-elapsed">0s</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Estimated Time Left</div>
+                            <div class="progress-stat-value" id="trn-eta">Calculating...</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Last Match Winner</div>
+                            <div class="progress-stat-value" id="trn-last-winner">—</div>
+                        </div>
+                    </div>
+                    <div class="progress-match" id="trn-match">Preparing matches...</div>
+                </div>
             </div>
 
             <div class="result-panel" id="trn-result">
@@ -673,7 +786,36 @@
 
             <div class="spinner" id="ova-spinner">
                 <div class="spinner-ring"></div>
-                <div class="spinner-text">Running 20 matches...</div>
+                <div class="spinner-text">Starting matches...</div>
+            </div>
+
+            <div class="progress-panel" id="ova-progress">
+                <div class="card">
+                    <div class="card-title"><span class="icon">⏳</span> One vs All Progress</div>
+                    <div class="progress-bar-outer">
+                        <div class="progress-bar-inner" id="ova-bar" style="width: 0%"></div>
+                        <div class="progress-pct" id="ova-pct">0%</div>
+                    </div>
+                    <div class="progress-stats">
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Matches Completed</div>
+                            <div class="progress-stat-value" id="ova-count">0 / 0</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Elapsed</div>
+                            <div class="progress-stat-value" id="ova-elapsed">0s</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Estimated Time Left</div>
+                            <div class="progress-stat-value" id="ova-eta">Calculating...</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Last Match Winner</div>
+                            <div class="progress-stat-value" id="ova-last-winner">—</div>
+                        </div>
+                    </div>
+                    <div class="progress-match" id="ova-match">Preparing matches...</div>
+                </div>
             </div>
 
             <div class="result-panel" id="ova-result">
@@ -736,6 +878,14 @@
         function getSeed(id) {
             const v = document.getElementById(id).value;
             return v ? parseInt(v) : null;
+        }
+        function formatTime(seconds) {
+            if (seconds < 60) return seconds.toFixed(1) + 's';
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            if (m < 60) return `${m}m ${s}s`;
+            const h = Math.floor(m / 60);
+            return `${h}h ${m % 60}m ${s}s`;
         }
 
         // ===== HEAD-TO-HEAD =====
@@ -811,31 +961,48 @@
         }
 
         // ===== TOURNAMENT =====
-        async function runTournament() {
+        function runTournament() {
             const btn = document.getElementById('trn-run');
             btn.disabled = true;
             hide('trn-result');
+            hide('trn-progress');
             showSpinner('trn-spinner');
 
-            const body = {
-                rounds: parseInt(document.getElementById('trn-rounds').value),
-                seed: getSeed('trn-seed'),
-            };
+            const rounds = parseInt(document.getElementById('trn-rounds').value);
+            const seed = getSeed('trn-seed');
+            let url = `/api/tournament/stream?rounds=${rounds}`;
+            if (seed !== null) url += `&seed=${seed}`;
 
-            try {
-                const res = await fetch('/api/tournament', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body),
-                });
-                const data = await res.json();
+            const source = new EventSource(url);
+
+            source.addEventListener('progress', (e) => {
+                hideSpinner('trn-spinner');
+                show('trn-progress');
+                const d = JSON.parse(e.data);
+                document.getElementById('trn-bar').style.width = d.pct + '%';
+                document.getElementById('trn-pct').textContent = d.pct + '%';
+                document.getElementById('trn-count').textContent = `${d.completed.toLocaleString()} / ${d.total.toLocaleString()}`;
+                document.getElementById('trn-elapsed').textContent = formatTime(d.elapsed);
+                document.getElementById('trn-eta').textContent = d.eta > 0 ? formatTime(d.eta) : 'Almost done...';
+                document.getElementById('trn-match').innerHTML = `Last: <strong>${d.match}</strong>`;
+                document.getElementById('trn-last-winner').textContent = d.winner;
+            });
+
+            source.addEventListener('done', (e) => {
+                source.close();
+                hide('trn-progress');
+                const data = JSON.parse(e.data);
                 renderTournament(data);
-            } catch (e) {
-                console.error(e);
-            }
+                btn.disabled = false;
+            });
 
-            hideSpinner('trn-spinner');
-            btn.disabled = false;
+            source.addEventListener('error', () => {
+                source.close();
+                hideSpinner('trn-spinner');
+                hide('trn-progress');
+                btn.disabled = false;
+                console.error('Tournament stream error');
+            });
         }
 
         function renderTournament(data) {
@@ -850,32 +1017,49 @@
         }
 
         // ===== ONE VS ALL =====
-        async function runOVA() {
+        function runOVA() {
             const btn = document.getElementById('ova-run');
             btn.disabled = true;
             hide('ova-result');
+            hide('ova-progress');
             showSpinner('ova-spinner');
 
-            const body = {
-                algo: document.getElementById('ova-algo').value,
-                rounds: parseInt(document.getElementById('ova-rounds').value),
-                seed: getSeed('ova-seed'),
-            };
+            const algo = encodeURIComponent(document.getElementById('ova-algo').value);
+            const rounds = parseInt(document.getElementById('ova-rounds').value);
+            const seed = getSeed('ova-seed');
+            let url = `/api/one-vs-all/stream?algo=${algo}&rounds=${rounds}`;
+            if (seed !== null) url += `&seed=${seed}`;
 
-            try {
-                const res = await fetch('/api/one-vs-all', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body),
-                });
-                const data = await res.json();
+            const source = new EventSource(url);
+
+            source.addEventListener('progress', (e) => {
+                hideSpinner('ova-spinner');
+                show('ova-progress');
+                const d = JSON.parse(e.data);
+                document.getElementById('ova-bar').style.width = d.pct + '%';
+                document.getElementById('ova-pct').textContent = d.pct + '%';
+                document.getElementById('ova-count').textContent = `${d.completed.toLocaleString()} / ${d.total.toLocaleString()}`;
+                document.getElementById('ova-elapsed').textContent = formatTime(d.elapsed);
+                document.getElementById('ova-eta').textContent = d.eta > 0 ? formatTime(d.eta) : 'Almost done...';
+                document.getElementById('ova-match').innerHTML = `Last: <strong>${d.match}</strong>`;
+                document.getElementById('ova-last-winner').textContent = d.winner;
+            });
+
+            source.addEventListener('done', (e) => {
+                source.close();
+                hide('ova-progress');
+                const data = JSON.parse(e.data);
                 renderOVA(data);
-            } catch (e) {
-                console.error(e);
-            }
+                btn.disabled = false;
+            });
 
-            hideSpinner('ova-spinner');
-            btn.disabled = false;
+            source.addEventListener('error', () => {
+                source.close();
+                hideSpinner('ova-spinner');
+                hide('ova-progress');
+                btn.disabled = false;
+                console.error('One vs All stream error');
+            });
         }
 
         function renderOVA(data) {

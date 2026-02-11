@@ -1,10 +1,11 @@
 """Tournament modes: head-to-head, one-vs-all, full round-robin.
 
 Supports parallel execution via ProcessPoolExecutor for multi-core speedup.
+Supports optional on_match_done callback for live progress tracking.
 """
 
 import os
-from typing import Optional
+from typing import Optional, Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from .engine import run_match, MatchResult
@@ -52,11 +53,14 @@ def one_vs_all(
     rounds: int = 1000,
     seed: Optional[int] = None,
     parallel: bool = True,
+    on_match_done: Optional[Callable[[int, int, MatchResult], None]] = None,
 ) -> list[MatchResult]:
     """Mode 2: Run a custom algorithm against every algorithm in the pool.
 
     Args:
         parallel: If True, run matches across multiple CPU cores.
+        on_match_done: Optional callback(completed, total, result) called
+                       after each match finishes. Used for progress tracking.
     """
     if pool is None:
         pool = get_all_algorithms()
@@ -68,13 +72,15 @@ def one_vs_all(
         jobs.append((custom_algo.name, opponent.name, rounds, match_seed))
 
     if parallel and len(jobs) > 1:
-        return _run_parallel(jobs, record_moves=False)
+        return _run_parallel(jobs, record_moves=False, on_match_done=on_match_done)
     else:
         # Sequential fallback
         results = []
-        for algo_a_name, algo_b_name, rds, ms in jobs:
+        for i, (algo_a_name, algo_b_name, rds, ms) in enumerate(jobs):
             result = _run_match_worker(algo_a_name, algo_b_name, rds, ms, record_moves=False)
             results.append(result)
+            if on_match_done:
+                on_match_done(i + 1, len(jobs), result)
         return results
 
 
@@ -83,11 +89,14 @@ def round_robin(
     rounds: int = 1000,
     seed: Optional[int] = None,
     parallel: bool = True,
+    on_match_done: Optional[Callable[[int, int, MatchResult], None]] = None,
 ) -> list[MatchResult]:
     """Mode 3: Full round-robin — every algorithm plays every other algorithm.
 
     Args:
         parallel: If True, run matches across multiple CPU cores.
+        on_match_done: Optional callback(completed, total, result) called
+                       after each match finishes. Used for progress tracking.
     """
     if algos is None:
         algos = get_all_algorithms()
@@ -102,13 +111,15 @@ def round_robin(
             match_idx += 1
 
     if parallel and len(jobs) > 1:
-        return _run_parallel(jobs, record_moves=False)
+        return _run_parallel(jobs, record_moves=False, on_match_done=on_match_done)
     else:
         # Sequential fallback
         results = []
-        for algo_a_name, algo_b_name, rds, ms in jobs:
+        for i, (algo_a_name, algo_b_name, rds, ms) in enumerate(jobs):
             result = _run_match_worker(algo_a_name, algo_b_name, rds, ms, record_moves=False)
             results.append(result)
+            if on_match_done:
+                on_match_done(i + 1, len(jobs), result)
         return results
 
 
@@ -119,15 +130,20 @@ def round_robin(
 def _run_parallel(
     jobs: list[tuple[str, str, int, Optional[int]]],
     record_moves: bool = False,
+    on_match_done: Optional[Callable[[int, int, MatchResult], None]] = None,
 ) -> list[MatchResult]:
     """Run a batch of matches in parallel using ProcessPoolExecutor.
 
     Jobs are submitted preserving order. Uses all available CPU cores.
+    Calls on_match_done(completed_count, total, result) as each future
+    completes, enabling real-time progress tracking.
     """
     max_workers = min(os.cpu_count() or 4, len(jobs))
+    total = len(jobs)
 
     # Use a dict to preserve original job ordering
-    results: list[Optional[MatchResult]] = [None] * len(jobs)
+    results: list[Optional[MatchResult]] = [None] * total
+    completed = 0
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         future_to_idx = {}
@@ -139,6 +155,11 @@ def _run_parallel(
 
         for future in as_completed(future_to_idx):
             idx = future_to_idx[future]
-            results[idx] = future.result()
+            result = future.result()
+            results[idx] = result
+            completed += 1
+
+            if on_match_done:
+                on_match_done(completed, total, result)
 
     return results  # type: ignore[return-value]
