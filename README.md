@@ -1,6 +1,6 @@
-# 🎮 RPS Playground — Algorithm Battle Arena
+# ✊✋✌️ RPS Playground — Algorithm Battle Arena
 
-A modular Rock-Paper-Scissors algorithm testing playground with **62 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
+A modular Rock-Paper-Scissors algorithm testing playground with **76 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
 
 ---
 
@@ -67,7 +67,7 @@ Run a single match between any two algorithms.
 
 ### 🏆 Tournament
 
-Full round-robin — every algorithm plays every other algorithm (1891 matches total with 62 bots).
+Full round-robin — every algorithm plays every other algorithm (2850 matches total with 76 bots).
 
 1. **Set rounds per match** and optional **seed**
 2. Click **🏆 RUN**
@@ -76,7 +76,7 @@ Full round-robin — every algorithm plays every other algorithm (1891 matches t
 
 ### 🤖 One vs All
 
-Test a single algorithm against the entire pool of 62 bots.
+Test a single algorithm against the entire pool of 76 bots.
 
 1. **Select your algorithm** from the dropdown
 2. **Set rounds** and optional **seed**
@@ -88,7 +88,7 @@ Test a single algorithm against the entire pool of 62 bots.
 
 ## 🤖 Algorithm Reference
 
-All 62 algorithms explained in detail.
+All 76 algorithms explained in detail.
 
 > **Notation used throughout:**
 > - `counter(X)` = the move that beats X. So `counter(Rock) = Paper`, `counter(Paper) = Scissors`, `counter(Scissors) = Rock`.
@@ -1407,6 +1407,111 @@ Prediction: 60% current-row + 40% stationary
 
 ---
 
+### 63. Q-Learner v5 🧠📈
+**Type:** RL / Linear Function Approximation · **Complexity:** Very High
+
+Replaces the lookup table `Q(s,a)` with a **linear model** `Q(s,a) = w^T · φ(s,a)`, using a 16-dimensional feature vector. Features include action one-hot, opponent's last move, frequency bias, transition probabilities, last outcome, and bias. Updates via SGD with experience replay.
+
+**Key advantage over v4:** Generalizes across similar states — "playing Paper when opponent is biased toward Rock" transfers to ALL states with Rock-biased opponents.
+
+---
+
+### 64. Thompson Sampler v5 🎲📈
+**Type:** Bayesian RL / Linear Regression · **Complexity:** Very High
+
+Bayesian linear regression over the 16-dimensional feature vector. Maintains per-action covariance matrices and posterior distributions. Samples weight vectors from the posterior via Cholesky decomposition for Thompson Sampling.
+
+Uses pure-Python matrix operations (Gauss-Jordan inversion, Cholesky decomposition) — zero external dependencies.
+
+---
+
+### 65. UCB Explorer v5 🔭📈
+**Type:** Contextual Bandits / LinUCB · **Complexity:** Very High
+
+LinUCB (contextual bandits) with the 16-dimensional feature vector. UCB bonus: `w^T·φ + α·√(φ^T · A^{-1} · φ)`. Balances exploitation (predicted reward) with exploration (uncertainty in feature space).
+
+---
+
+### 66. Gradient Learner v5 📉📈
+**Type:** Policy Gradient / REINFORCE · **Complexity:** Very High
+
+Linear softmax policy over features. Per-action preference `h(a) = w_a^T · φ(s)`. Policy gradient via REINFORCE: `Δw_a = α · (r - baseline) · ∇ log π(a|s)`.
+
+---
+
+### 67. Hidden Markov Oracle 🔮🧬
+**Type:** Hidden Markov Model (NLP/Speech) · **Complexity:** Very High
+
+Assumes the opponent has **3 hidden internal states** (e.g., aggressive, defensive, random). Uses the **Forward algorithm** for state inference and **online Baum-Welch** to learn transition and emission matrices. Predicts by marginalizing over hidden states.
+
+**Why it's powerful:** Detects implicit mode switches (Shapeshifter changes every 40 rounds, Sleeper Agent has dormant/active phases).
+
+---
+
+### 68. Genetic Strategist 🧬🦎
+**Type:** Evolutionary Computation · **Complexity:** High
+
+Maintains a **population of 20 strategy genomes** (response tables mapping `(opp[-1], opp[-2]) → Move`). Every 25 rounds: selection (keep top 10), crossover (swap random entries), mutation (5% per gene). Uses the fittest genome's response table.
+
+**Key difference:** Adapts its **entire strategy structure**, not just parameters.
+
+---
+
+### 69. PID Controller 🎛️🔧
+**Type:** Control Theory / Robotics · **Complexity:** Medium
+
+Treats the game as a **feedback control problem**. P (proportional) adjusts based on current error, I (integral) corrects persistent bias, D (derivative) anticipates strategy changes. Control signal mapped to moves via softmax.
+
+---
+
+### 70. Chaos Engine 🌀🔥
+**Type:** Nonlinear Dynamics / Chaos Theory · **Complexity:** Medium
+
+Uses the **logistic map** `x_{n+1} = 3.99 × x_n × (1 - x_n)` in the fully chaotic regime. 70% chaos (deterministic but unpredictable), 30% frequency exploitation. Reseeds every 50 rounds using hash of recent outcomes.
+
+---
+
+### 71. Level-k Reasoner 🧠♟️
+**Type:** Behavioral Economics / Cognitive Hierarchy · **Complexity:** High
+
+From Nagel (1995) and Camerer (2003). Detects the opponent's **cognitive reasoning level** (0-4) by simulating what each level would play and comparing to actual moves. Then plays at level k+1 — one step above the opponent.
+
+---
+
+### 72. UCB-NGram Fusion ⚡🔀
+**Type:** Hybrid / Meta-Strategy · **Complexity:** High
+
+Fuses UCB bandit exploration with N-Gram prediction. Three layers: (1) Strategy layer (UCB, N-Gram, frequency), (2) Softmax selection weighted by rolling win rates + phase modifiers, (3) **Meta-prediction layer** that detects when our own moves become predictable and counter-rotates.
+
+---
+
+### 73. Iocaine Powder Plus 🧪⚗️
+**Type:** Meta-Strategy / Ensemble · **Complexity:** High
+
+Upgraded Iocaine Powder with **12 meta-strategies** (adds Markov, bigram, trigram counters + mirrors). Uses sliding-window scoring with faster exponential decay (0.92).
+
+---
+
+### 74. Dynamic Mixture 🔄🎯
+**Type:** Ensemble / Hedge + Evolution · **Complexity:** High
+
+Upgraded Mixture Model with **8 experts** (adds Markov-2, recent frequency, win-pattern). Features **expert pruning** (drop <25% accuracy after 100 rounds) and **expert spawning** (clone best expert every 200 rounds).
+
+---
+
+### 75. Hierarchical Bayesian 📊🔬
+**Type:** Bayesian Statistics / Hierarchical Model · **Complexity:** High
+
+Upgraded Bayesian Predictor that **learns its own prior** via evidence maximization. Features **change-point detection** (resets when KL divergence exceeds threshold) and **multi-window ensemble** (combines windows of 20, 50, 100 rounds).
+
+---
+
+### 76. Self-Model Detector 🔍🤖
+**Type:** Strategy Identification / Self-Play · **Complexity:** High
+
+Upgraded Anti-Strategy Detector with **10 candidate strategy simulations** (constant, cycle, mirror, counter, frequency, Markov, WSLS, anti-TFT, pattern cycle, decay frequency). Identifies which strategy the opponent most resembles and counters it.
+
+---
 
 ## 📊 Elo Rating System
 
@@ -1462,7 +1567,7 @@ ALL_ALGORITHM_CLASSES = [
 rps_playground/
 ├── __init__.py          # Package init
 ├── engine.py            # Core: Move enum, winner logic, MatchResult, run_match
-├── algorithms.py        # 62 algorithms + base class + registry
+├── algorithms.py        # 76 algorithms + base class + registry
 ├── tournament.py        # 3 modes: head-to-head, one-vs-all, round-robin
 ├── stats.py             # Elo system, leaderboard, H2H matrix, pretty-print
 ├── export.py            # JSON and CSV export

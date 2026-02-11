@@ -1439,33 +1439,111 @@ class QLearnerV5(Algorithm):
 
 
 # ---------------------------------------------------------------------------
-# 64: Thompson Sampler v5 (Bayesian Linear Regression)
+# 64: Thompson Sampler v5 (Bayesian Linear Regression — pure Python)
 # ---------------------------------------------------------------------------
 
-class ThompsonSamplerV5(Algorithm):
-    """Thompson Sampler v5 with Bayesian linear regression on features.
+def _mat_zeros(n):
+    """Create n×n zero matrix."""
+    return [[0.0] * n for _ in range(n)]
 
-    Instead of Beta distributions per (state, action), maintains a
-    Bayesian linear model per action: posterior N(μ, Σ) where
-    Σ⁻¹ = λI + Σ φφᵀ and μ = Σ · Σ φr.
-    Samples weights from posterior, picks action with highest Q-sample.
+def _mat_identity(n):
+    """Create n×n identity matrix."""
+    m = _mat_zeros(n)
+    for i in range(n):
+        m[i][i] = 1.0
+    return m
+
+def _mat_add_outer(A, v):
+    """A += v·vᵀ (rank-1 update, in-place)."""
+    n = len(v)
+    for i in range(n):
+        for j in range(n):
+            A[i][j] += v[i] * v[j]
+
+def _mat_vec_mul(A, v):
+    """Return A·v."""
+    n = len(v)
+    result = [0.0] * n
+    for i in range(n):
+        for j in range(n):
+            result[i] += A[i][j] * v[j]
+    return result
+
+def _mat_inverse(A):
+    """Gauss-Jordan inversion of n×n matrix. Returns A⁻¹."""
+    n = len(A)
+    # Augmented matrix [A | I]
+    aug = [row[:] + [1.0 if j == i else 0.0 for j in range(n)] for i, row in enumerate(A)]
+
+    for col in range(n):
+        # Find pivot
+        max_row = col
+        for row in range(col + 1, n):
+            if abs(aug[row][col]) > abs(aug[max_row][col]):
+                max_row = row
+        aug[col], aug[max_row] = aug[max_row], aug[col]
+
+        pivot = aug[col][col]
+        if abs(pivot) < 1e-12:
+            aug[col][col] = 1e-6  # regularise
+            pivot = 1e-6
+
+        for j in range(2 * n):
+            aug[col][j] /= pivot
+
+        for row in range(n):
+            if row == col:
+                continue
+            factor = aug[row][col]
+            for j in range(2 * n):
+                aug[row][j] -= factor * aug[col][j]
+
+    return [row[n:] for row in aug]
+
+def _cholesky_lower(A):
+    """Cholesky decomposition: returns L such that A = L·Lᵀ.
+
+    Falls back to diagonal √A[i][i] if matrix is not positive-definite.
+    """
+    import math
+    n = len(A)
+    L = _mat_zeros(n)
+    for i in range(n):
+        for j in range(i + 1):
+            s = sum(L[i][k] * L[j][k] for k in range(j))
+            if i == j:
+                val = A[i][i] - s
+                L[i][j] = math.sqrt(max(val, 1e-10))
+            else:
+                if abs(L[j][j]) < 1e-12:
+                    L[i][j] = 0.0
+                else:
+                    L[i][j] = (A[i][j] - s) / L[j][j]
+    return L
+
+
+class ThompsonSamplerV5(Algorithm):
+    """Thompson Sampler v5 with Bayesian linear regression (pure Python).
+
+    Maintains per-action posterior N(μ, Σ) where Σ⁻¹ = λI + Σ φφᵀ.
+    Samples weights from posterior via Cholesky decomposition, picks
+    action with highest Q-sample.
     """
     name = "Thompson Sampler v5"
 
     def reset(self):
-        import numpy as np
-        self._np = np
         d = 16  # feature dimension
-        self._lambda = 1.0  # prior precision
-        # Per action: (A = Σ⁻¹, b = Σ φr)
-        self._A = [np.eye(d) * self._lambda for _ in range(3)]
-        self._b = [np.zeros(d) for _ in range(3)]
+        lam = 1.0  # prior precision
+        # Per action: A = Σ⁻¹ (precision), b = Σ φr (moment)
+        self._A = [[[lam if i == j else 0.0 for j in range(d)] for i in range(d)] for _ in range(3)]
+        self._b = [[0.0] * d for _ in range(3)]
+        self._d = d
         self._last_action = None
         self._last_phi = None
         _pretrain_against_archetypes(self)
 
     def choose(self, round_num, my_history, opp_history):
-        np = self._np
+        d = self._d
 
         # Update from last round
         if self._last_action is not None and len(my_history) >= 1:
@@ -1479,28 +1557,30 @@ class ThompsonSamplerV5(Algorithm):
                 reward = -1.0
 
             a_idx = MOVES.index(self._last_action)
-            phi = np.array(self._last_phi)
-            self._A[a_idx] += np.outer(phi, phi)
-            self._b[a_idx] += reward * phi
+            phi = self._last_phi
+            # A += φφᵀ
+            _mat_add_outer(self._A[a_idx], phi)
+            # b += r·φ
+            for i in range(d):
+                self._b[a_idx][i] += reward * phi[i]
 
-        # Thompson sampling: sample weights from posterior, pick best action
+        # Thompson sampling: sample weights from posterior, pick best
         best_q, best_action = -1e9, MOVES[0]
         best_phi = None
         for m in MOVES:
-            phi_list = _build_feature_vector(my_history, opp_history, m)
-            phi = np.array(phi_list)
+            phi = _build_feature_vector(my_history, opp_history, m)
             a_idx = MOVES.index(m)
-            try:
-                A_inv = np.linalg.inv(self._A[a_idx])
-                mu = A_inv @ self._b[a_idx]
-                # Sample from posterior
-                w_sample = np.random.multivariate_normal(mu, A_inv)
-            except np.linalg.LinAlgError:
-                mu = np.zeros(16)
-                w_sample = mu
-            q = float(w_sample @ phi)
+            A_inv = _mat_inverse(self._A[a_idx])
+            mu = _mat_vec_mul(A_inv, self._b[a_idx])
+
+            # Sample: w ~ N(mu, A_inv) via Cholesky
+            L = _cholesky_lower(A_inv)
+            z = [self.rng.gauss(0, 1) for _ in range(d)]
+            w_sample = [mu[i] + sum(L[i][j] * z[j] for j in range(i + 1)) for i in range(d)]
+
+            q = _dot(w_sample, phi)
             if q > best_q:
-                best_q, best_action, best_phi = q, m, phi_list
+                best_q, best_action, best_phi = q, m, phi
 
         self._last_action = best_action
         self._last_phi = best_phi
@@ -1508,30 +1588,30 @@ class ThompsonSamplerV5(Algorithm):
 
 
 # ---------------------------------------------------------------------------
-# 65: UCB Explorer v5 (LinUCB — contextual bandits)
+# 65: UCB Explorer v5 (LinUCB — contextual bandits, pure Python)
 # ---------------------------------------------------------------------------
 
 class UCBExplorerV5(Algorithm):
-    """LinUCB v5 — contextual bandit with linear payoff model.
+    """LinUCB v5 — contextual bandit with linear payoff model (pure Python).
 
-    For each action: UCB = wᵀφ + α√(φᵀA⁻¹φ).
+    For each action: UCB = wᵀφ + α·√(φᵀA⁻¹φ).
     A is the feature covariance matrix, updated online.
     """
     name = "UCB Explorer v5"
 
     def reset(self):
-        import numpy as np
-        self._np = np
         d = 16
+        self._d = d
         self._alpha_ucb = 1.5  # exploration coefficient
-        self._A = [np.eye(d) for _ in range(3)]
-        self._b = [np.zeros(d) for _ in range(3)]
+        self._A = [[[1.0 if i == j else 0.0 for j in range(d)] for i in range(d)] for _ in range(3)]
+        self._b = [[0.0] * d for _ in range(3)]
         self._last_action = None
         self._last_phi = None
         _pretrain_against_archetypes(self)
 
     def choose(self, round_num, my_history, opp_history):
-        np = self._np
+        import math
+        d = self._d
 
         # Update from last round
         if self._last_action is not None and len(my_history) >= 1:
@@ -1545,27 +1625,26 @@ class UCBExplorerV5(Algorithm):
                 reward = 0.0
 
             a_idx = MOVES.index(self._last_action)
-            phi = np.array(self._last_phi)
-            self._A[a_idx] += np.outer(phi, phi)
-            self._b[a_idx] += reward * phi
+            phi = self._last_phi
+            _mat_add_outer(self._A[a_idx], phi)
+            for i in range(d):
+                self._b[a_idx][i] += reward * phi[i]
 
         # LinUCB action selection
         best_ucb, best_action = -1e9, MOVES[0]
         best_phi = None
         for m in MOVES:
-            phi_list = _build_feature_vector(my_history, opp_history, m)
-            phi = np.array(phi_list)
+            phi = _build_feature_vector(my_history, opp_history, m)
             a_idx = MOVES.index(m)
-            try:
-                A_inv = np.linalg.inv(self._A[a_idx])
-            except np.linalg.LinAlgError:
-                A_inv = np.eye(16)
-            theta = A_inv @ self._b[a_idx]
-            exploit = float(theta @ phi)
-            explore = self._alpha_ucb * float(np.sqrt(phi @ A_inv @ phi))
+            A_inv = _mat_inverse(self._A[a_idx])
+            theta = _mat_vec_mul(A_inv, self._b[a_idx])
+            exploit = _dot(theta, phi)
+            # Exploration bonus: α·√(φᵀ·A⁻¹·φ)
+            A_inv_phi = _mat_vec_mul(A_inv, phi)
+            explore = self._alpha_ucb * math.sqrt(max(0, _dot(phi, A_inv_phi)))
             ucb = exploit + explore
             if ucb > best_ucb:
-                best_ucb, best_action, best_phi = ucb, m, phi_list
+                best_ucb, best_action, best_phi = ucb, m, phi
 
         self._last_action = best_action
         self._last_phi = best_phi
@@ -3779,6 +3858,700 @@ class LevelKReasoner(Algorithm):
 
 
 # ---------------------------------------------------------------------------
+# 72: UCB-NGram Fusion (Hybrid — exploits complementary phase advantages)
+# ---------------------------------------------------------------------------
+
+class UCBNGramFusion(Algorithm):
+    """Hybrid that fuses UCB bandit exploration with N-Gram pattern prediction.
+
+    Analysis shows UCB Explorer beats N-Gram via early-game exploration
+    unpredictability (rounds 0-200), while N-Gram dominates late-game
+    once it has enough data to predict patterns (rounds 300+).
+
+    This fusion combines three layers:
+    1. Strategy Layer: UCB bandit, N-Gram predictor, frequency counter
+    2. Selection Layer: softmax mixture weighted by rolling accuracy
+    3. Meta-Prediction Layer: simulates opponent modeling OUR patterns
+       and counter-rotates when we become predictable
+
+    The meta-prediction layer is what makes this hybrid stronger than
+    either parent — it resists being pattern-matched by N-Gram-type
+    opponents while maintaining prediction power against others.
+    """
+    name = "UCB-NGram Fusion"
+
+    def reset(self):
+        import math
+        self._math = math
+
+        # Strategy accuracy (cumulative wins per strategy)
+        self._strat_wins = {"ucb": 1, "ngram": 1, "freq": 1}
+        self._strat_plays = {"ucb": 1, "ngram": 1, "freq": 1}
+
+        # UCB bandit component
+        self._ucb_counts = {m: 0 for m in MOVES}
+        self._ucb_rewards = {m: 0.0 for m in MOVES}
+        self._ucb_total = 0
+
+        # Anti-exploitation: recent loss tracking
+        self._recent_results = []  # list of 1(win), 0(draw), -1(loss)
+
+        # Meta-prediction: what strategy we used last round
+        self._last_strategy = None
+        self._last_move = None
+
+    def _ucb_choose(self, opp_history):
+        """UCB1 action selection for exploration."""
+        math = self._math
+        if self._ucb_total < 3:
+            return MOVES[self._ucb_total]
+        c = math.sqrt(2)
+        best_ucb, best_move = -1e9, MOVES[0]
+        for m in MOVES:
+            if self._ucb_counts[m] == 0:
+                return m
+            avg = self._ucb_rewards[m] / self._ucb_counts[m]
+            explore = c * math.sqrt(math.log(self._ucb_total) / self._ucb_counts[m])
+            ucb = avg + explore
+            if ucb > best_ucb:
+                best_ucb, best_move = ucb, m
+        return best_move
+
+    def _ngram_predict(self, opp_history):
+        """N-Gram pattern prediction (n=4,3,2,1)."""
+        for n in [4, 3, 2, 1]:
+            if n >= len(opp_history):
+                continue
+            context = tuple(opp_history[-n:])
+            counts = {m: 0 for m in MOVES}
+            total = 0
+            for i in range(len(opp_history) - n):
+                if tuple(opp_history[i:i + n]) == context and (i + n) < len(opp_history):
+                    counts[opp_history[i + n]] += 1
+                    total += 1
+            if total >= 2:
+                return _counter_move(max(counts, key=counts.get))
+        return None
+
+    def _freq_choice(self, opp_history):
+        """Frequency counter baseline."""
+        if not opp_history:
+            return self.rng.choice(MOVES)
+        counts = Counter(opp_history[-30:])
+        return _counter_move(counts.most_common(1)[0][0])
+
+    def _meta_predict_self(self, my_history):
+        """Simulate what a pattern-matcher would predict WE will play.
+
+        If our own moves are predictable, an N-Gram opponent can exploit us.
+        Returns the move they'd expect us to play (or None if unpredictable).
+        """
+        if len(my_history) < 8:
+            return None
+
+        # Check if our recent moves have a frequency bias
+        recent = my_history[-20:]
+        counts = Counter(recent)
+        most_common, most_count = counts.most_common(1)[0]
+        if most_count / len(recent) > 0.45:
+            # We're biased — an opponent would predict this and counter it
+            return most_common
+
+        # Check if our last-2 moves form a detectable pattern
+        if len(my_history) >= 4:
+            bigram = (my_history[-2], my_history[-1])
+            pattern_count = 0
+            for i in range(len(my_history) - 2):
+                if (my_history[i], my_history[i+1]) == bigram:
+                    pattern_count += 1
+            if pattern_count >= 3:
+                return most_common
+
+        return None
+
+    def choose(self, round_num, my_history, opp_history):
+        math = self._math
+
+        # Update from last round
+        if my_history and opp_history:
+            my_last = my_history[-1]
+            opp_last = opp_history[-1]
+
+            # Track wins/losses
+            if BEATS[my_last] == opp_last:
+                self._recent_results.append(1)
+            elif my_last == opp_last:
+                self._recent_results.append(0)
+            else:
+                self._recent_results.append(-1)
+            if len(self._recent_results) > 30:
+                self._recent_results.pop(0)
+
+            # Update UCB component
+            self._ucb_counts[my_last] += 1
+            self._ucb_total += 1
+            if BEATS[my_last] == opp_last:
+                self._ucb_rewards[my_last] += 1.0
+            elif my_last == opp_last:
+                self._ucb_rewards[my_last] += 0.5
+
+            # Update strategy accuracy
+            if self._last_strategy is not None:
+                won = BEATS[my_last] == opp_last
+                self._strat_plays[self._last_strategy] += 1
+                if won:
+                    self._strat_wins[self._last_strategy] += 1
+
+        if len(opp_history) < 5:
+            return self.rng.choice(MOVES)
+
+        # Anti-exploitation: if losing badly, inject randomness
+        if len(self._recent_results) >= 10:
+            recent_score = sum(self._recent_results[-10:])
+            if recent_score < -3:  # losing >6.5 out of 10
+                self._last_strategy = "ucb"
+                return self.rng.choice(MOVES)
+
+        # Get predictions from all strategies
+        ucb_move = self._ucb_choose(opp_history)
+        ngram_move = self._ngram_predict(opp_history)
+        freq_move = self._freq_choice(opp_history)
+
+        # Strategy selection via softmax on win rates
+        candidates = {"ucb": ucb_move, "freq": freq_move}
+        if ngram_move is not None:
+            candidates["ngram"] = ngram_move
+
+        # Compute softmax weights from win rates
+        temps = {}
+        for s in candidates:
+            win_rate = self._strat_wins[s] / max(self._strat_plays[s], 1)
+            temps[s] = math.exp(5.0 * win_rate)  # temperature=5
+
+        total_temp = sum(temps.values())
+        weights = {s: temps[s] / total_temp for s in temps}
+
+        # Phase modifiers
+        if len(opp_history) < 80:
+            weights["ucb"] = weights.get("ucb", 0) * 1.4
+        if len(opp_history) > 150 and "ngram" in weights:
+            weights["ngram"] *= 1.5
+
+        # Select strategy by weighted random
+        total_w = sum(weights.values())
+        r = self.rng.random() * total_w
+        cumulative = 0.0
+        chosen_strat = "freq"
+        for s, w in weights.items():
+            cumulative += w
+            if r <= cumulative:
+                chosen_strat = s
+                break
+
+        chosen_move = candidates[chosen_strat]
+
+        # META-PREDICTION LAYER: detect if WE are predictable
+        self_prediction = self._meta_predict_self(my_history)
+        if self_prediction is not None and chosen_move == self_prediction:
+            # Opponent likely expects us to play this — rotate!
+            # Play what beats their counter to our predicted move
+            their_counter = _counter_move(self_prediction)
+            chosen_move = _counter_move(their_counter)
+
+        self._last_strategy = chosen_strat
+        self._last_move = chosen_move
+        return chosen_move
+
+
+# ===========================================================================
+#  UPGRADED COMPETITIVE ALGORITHMS (73-76)
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# 73: Iocaine Powder Plus (upgraded Iocaine Powder)
+# ---------------------------------------------------------------------------
+
+class IocainePowderPlus(Algorithm):
+    """Upgraded Iocaine Powder with 12 meta-strategies.
+
+    Original uses 6 meta-strategies. Plus version adds:
+    - Markov counter: predict via transition matrix
+    - Bigram counter: predict from (opp[-2],opp[-1]) pattern
+    - Trigram counter: predict from (opp[-3],opp[-2],opp[-1])
+    - Mirror of each new strategy (from opponent's perspective)
+    - Sliding window scoring (last 50 rounds) with exponential decay
+    """
+    name = "Iocaine Powder Plus"
+
+    def reset(self):
+        self._meta_scores = [0.0] * 12
+
+    def _generate_predictions(self, my_history, opp_history):
+        """Generate 12 meta-strategy predictions."""
+        preds = []
+
+        # 1. Opponent repeats last
+        preds.append(opp_history[-1])
+        # 2. Opponent counters our last
+        preds.append(_counter_move(my_history[-1]))
+        # 3. Double bluff: counter what beats their last
+        preds.append(_counter_move(_counter_move(opp_history[-1])))
+        # 4. Opponent predicts we counter their last, counters that
+        preds.append(_counter_move(_counter_move(opp_history[-1])))
+        # 5. Opponent plays what beats our second-order guess
+        preds.append(_counter_move(_counter_move(my_history[-1])))
+        # 6. Frequency-weighted (recent 15)
+        counts = Counter(opp_history[-15:])
+        preds.append(counts.most_common(1)[0][0])
+
+        # 7. Markov: transition from their last move
+        last = opp_history[-1]
+        trans = Counter()
+        for j in range(len(opp_history) - 1):
+            if opp_history[j] == last:
+                trans[opp_history[j + 1]] += 1
+        if trans:
+            preds.append(trans.most_common(1)[0][0])
+        else:
+            preds.append(last)
+
+        # 8. Bigram: (opp[-2], opp[-1]) → next
+        if len(opp_history) >= 3:
+            bigram = (opp_history[-2], opp_history[-1])
+            bg_counts = Counter()
+            for j in range(len(opp_history) - 2):
+                if (opp_history[j], opp_history[j+1]) == bigram:
+                    bg_counts[opp_history[j+2]] += 1
+            if bg_counts:
+                preds.append(bg_counts.most_common(1)[0][0])
+            else:
+                preds.append(opp_history[-1])
+        else:
+            preds.append(opp_history[-1])
+
+        # 9. Trigram: (opp[-3], opp[-2], opp[-1]) → next
+        if len(opp_history) >= 4:
+            trigram = (opp_history[-3], opp_history[-2], opp_history[-1])
+            tg_counts = Counter()
+            for j in range(len(opp_history) - 3):
+                if (opp_history[j], opp_history[j+1], opp_history[j+2]) == trigram:
+                    tg_counts[opp_history[j+3]] += 1
+            if tg_counts:
+                preds.append(tg_counts.most_common(1)[0][0])
+            else:
+                preds.append(opp_history[-1])
+        else:
+            preds.append(opp_history[-1])
+
+        # 10-12: Mirror versions (from opponent's POV — swap my/opp)
+        # Opponent mirrors our Markov prediction of them
+        preds.append(_counter_move(preds[6]))  # counter their Markov prediction
+        preds.append(_counter_move(preds[7]))  # counter their bigram
+        preds.append(_counter_move(preds[8]))  # counter their trigram
+
+        return preds
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 4:
+            return self.rng.choice(MOVES)
+
+        preds = self._generate_predictions(my_history, opp_history)
+
+        # Score each meta-strategy — how well did it predict LAST round?
+        if len(opp_history) >= 5 and len(my_history) >= 5:
+            actual = opp_history[-1]
+            # Reconstruct predictions from PREVIOUS round state
+            prev_my = my_history[:-1]
+            prev_opp = opp_history[:-1]
+            prev_preds = self._generate_predictions(prev_my, prev_opp)
+
+            decay = 0.92
+            for i in range(12):
+                self._meta_scores[i] *= decay
+                if prev_preds[i] == actual:
+                    self._meta_scores[i] += 1.0
+
+        best_idx = self._meta_scores.index(max(self._meta_scores))
+        return _counter_move(preds[best_idx])
+
+
+# ---------------------------------------------------------------------------
+# 74: Dynamic Mixture (upgraded Mixture Model)
+# ---------------------------------------------------------------------------
+
+class DynamicMixture(Algorithm):
+    """Upgraded Mixture Model with 8 experts, pruning, and spawning.
+
+    Original has 5 fixed experts. Dynamic version adds:
+    - 8 experts (+ Markov-2, Transition counter, Win-pattern)
+    - Expert pruning: drop experts with <25% accuracy after 100 rounds
+    - Expert spawning: clone best expert with noise every 200 rounds
+    """
+    name = "Dynamic Mixture"
+
+    def reset(self):
+        self._n_experts = 8
+        self._weights = [1.0 / self._n_experts] * self._n_experts
+        self._eta = 0.12
+        self._last_votes: list[Move] = []
+        self._expert_correct = [0] * self._n_experts
+        self._expert_total = [0] * self._n_experts
+        self._active = [True] * self._n_experts
+
+    def _generate_expert_votes(self, my_history, opp_history):
+        """Generate votes from all 8 experts."""
+        votes = []
+
+        # Expert 0: Counter last move
+        if opp_history:
+            votes.append(_counter_move(opp_history[-1]))
+        else:
+            votes.append(self.rng.choice(MOVES))
+
+        # Expert 1: Frequency counter
+        if opp_history:
+            counts = Counter(opp_history)
+            votes.append(_counter_move(counts.most_common(1)[0][0]))
+        else:
+            votes.append(self.rng.choice(MOVES))
+
+        # Expert 2: Markov-1 transition
+        if len(opp_history) >= 2:
+            last = opp_history[-1]
+            trans = Counter()
+            for j in range(len(opp_history) - 1):
+                if opp_history[j] == last:
+                    trans[opp_history[j + 1]] += 1
+            if trans:
+                votes.append(_counter_move(trans.most_common(1)[0][0]))
+            else:
+                votes.append(_counter_move(last))
+        else:
+            votes.append(self.rng.choice(MOVES))
+
+        # Expert 3: Win-Stay Lose-Shift
+        if my_history and opp_history:
+            if BEATS[my_history[-1]] == opp_history[-1] or my_history[-1] == opp_history[-1]:
+                votes.append(my_history[-1])
+            else:
+                votes.append(_counter_move(opp_history[-1]))
+        else:
+            votes.append(self.rng.choice(MOVES))
+
+        # Expert 4: Random
+        votes.append(self.rng.choice(MOVES))
+
+        # Expert 5: Markov-2 (bigram transition)
+        if len(opp_history) >= 3:
+            bigram = (opp_history[-2], opp_history[-1])
+            bg = Counter()
+            for j in range(len(opp_history) - 2):
+                if (opp_history[j], opp_history[j+1]) == bigram:
+                    bg[opp_history[j+2]] += 1
+            if bg:
+                votes.append(_counter_move(bg.most_common(1)[0][0]))
+            else:
+                votes.append(self.rng.choice(MOVES))
+        else:
+            votes.append(self.rng.choice(MOVES))
+
+        # Expert 6: Recent frequency (last 20 only)
+        if len(opp_history) >= 10:
+            recent = Counter(opp_history[-20:])
+            votes.append(_counter_move(recent.most_common(1)[0][0]))
+        else:
+            votes.append(self.rng.choice(MOVES))
+
+        # Expert 7: Win-pattern (what beat us before)
+        if len(opp_history) >= 5 and len(my_history) >= 5:
+            winning_moves = [opp_history[i] for i in range(len(opp_history))
+                             if i < len(my_history) and BEATS[opp_history[i]] == my_history[i]]
+            if winning_moves:
+                common_win = Counter(winning_moves).most_common(1)[0][0]
+                votes.append(_counter_move(common_win))
+            else:
+                votes.append(self.rng.choice(MOVES))
+        else:
+            votes.append(self.rng.choice(MOVES))
+
+        return votes
+
+    def choose(self, round_num, my_history, opp_history):
+        # Update weights from last round
+        if self._last_votes and len(opp_history) >= 1:
+            opp_last = opp_history[-1]
+            for i, vote in enumerate(self._last_votes):
+                if not self._active[i]:
+                    continue
+                if BEATS[vote] == opp_last:
+                    loss = 0.0
+                    self._expert_correct[i] += 1
+                elif vote == opp_last:
+                    loss = 0.5
+                else:
+                    loss = 1.0
+                self._expert_total[i] += 1
+                self._weights[i] *= (1.0 - self._eta * loss)
+
+            # Normalize active weights
+            w_sum = sum(self._weights[i] for i in range(self._n_experts) if self._active[i])
+            if w_sum > 0:
+                for i in range(self._n_experts):
+                    if self._active[i]:
+                        self._weights[i] /= w_sum
+
+        # Expert pruning: after 100 rounds, drop <25% accuracy
+        if len(opp_history) == 100:
+            for i in range(self._n_experts):
+                if self._expert_total[i] > 50:
+                    acc = self._expert_correct[i] / self._expert_total[i]
+                    if acc < 0.25 and i != 4:  # don't prune random
+                        self._active[i] = False
+                        self._weights[i] = 0.0
+
+        # Expert spawning: every 200 rounds, clone best
+        if round_num > 0 and round_num % 200 == 0:
+            best_i = max(range(self._n_experts),
+                         key=lambda i: self._weights[i] if self._active[i] else -1)
+            worst_i = min(range(self._n_experts),
+                          key=lambda i: self._weights[i] if self._active[i] else float('inf'))
+            if best_i != worst_i and self._active[best_i]:
+                self._weights[worst_i] = self._weights[best_i] * 0.5
+                self._active[worst_i] = True
+                self._expert_correct[worst_i] = self._expert_correct[best_i]
+                self._expert_total[worst_i] = self._expert_total[best_i]
+
+        # Generate votes
+        votes = self._generate_expert_votes(my_history, opp_history)
+        self._last_votes = votes
+
+        # Weighted vote
+        move_weights = {m: 0.0 for m in MOVES}
+        for i, vote in enumerate(votes):
+            if self._active[i]:
+                move_weights[vote] += self._weights[i]
+
+        return max(move_weights, key=move_weights.get)
+
+
+# ---------------------------------------------------------------------------
+# 75: Hierarchical Bayesian (upgraded Bayesian Predictor)
+# ---------------------------------------------------------------------------
+
+class HierarchicalBayesian(Algorithm):
+    """Upgraded Bayesian Predictor with learned prior and change-point detection.
+
+    Original uses flat Dir(1,1,1) prior with 50-round window. This version:
+    - Learns the prior α via evidence maximization (adapts over time)
+    - Change-point detection: resets when KL divergence exceeds threshold
+    - Multi-window ensemble: combines predictions from windows 20, 50, 100
+    """
+    name = "Hierarchical Bayesian"
+
+    def reset(self):
+        import math
+        self._math = math
+        # Learned prior (starts uninformative)
+        self._alpha = {m: 1.0 for m in MOVES}
+        # Change-point detection
+        self._prev_distribution = {m: 1.0 / 3.0 for m in MOVES}
+        self._kl_threshold = 0.5
+        self._since_changepoint = 0
+
+    def _dirichlet_sample(self, alphas):
+        """Sample from Dirichlet by sampling independent Gammas."""
+        samples = {}
+        for m in MOVES:
+            samples[m] = self.rng.gammavariate(max(alphas[m], 0.01), 1.0)
+        total = sum(samples.values())
+        if total > 0:
+            return {m: samples[m] / total for m in MOVES}
+        return {m: 1.0 / 3.0 for m in MOVES}
+
+    def _kl_divergence(self, p, q):
+        """Compute KL(p || q) for move distributions."""
+        math = self._math
+        kl = 0.0
+        for m in MOVES:
+            pi = max(p[m], 1e-10)
+            qi = max(q[m], 1e-10)
+            kl += pi * math.log(pi / qi)
+        return kl
+
+    def _compute_prediction(self, opp_window):
+        """Compute posterior prediction from a window."""
+        counts = Counter(opp_window)
+        alphas = {m: self._alpha[m] + counts.get(m, 0) for m in MOVES}
+        return self._dirichlet_sample(alphas)
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 3:
+            return self.rng.choice(MOVES)
+
+        # Change-point detection: compare recent vs previous distribution
+        if len(opp_history) >= 20:
+            recent_counts = Counter(opp_history[-20:])
+            n = len(opp_history[-20:])
+            recent_dist = {m: (recent_counts.get(m, 0) + 0.5) / (n + 1.5)
+                           for m in MOVES}
+
+            kl = self._kl_divergence(recent_dist, self._prev_distribution)
+            if kl > self._kl_threshold:
+                # Change point detected — reset prior to recent empirical
+                self._alpha = {m: max(recent_dist[m] * 3, 0.5) for m in MOVES}
+                self._since_changepoint = 0
+
+            self._prev_distribution = recent_dist
+        self._since_changepoint += 1
+
+        # Learn prior: update α toward observed frequencies
+        if len(opp_history) >= 50 and round_num % 25 == 0:
+            long_counts = Counter(opp_history)
+            total_n = len(opp_history)
+            for m in MOVES:
+                observed_frac = long_counts.get(m, 0) / total_n
+                # Slowly adjust prior toward observed distribution
+                self._alpha[m] = 0.9 * self._alpha[m] + 0.1 * (observed_frac * 3 + 0.5)
+
+        # Multi-window ensemble: windows of 20, 50, 100
+        predictions = []
+        ensemble_weights = [0.5, 0.3, 0.2]  # recent windows weighted more
+
+        for window_size, w in zip([20, 50, 100], ensemble_weights):
+            if len(opp_history) >= window_size:
+                pred = self._compute_prediction(opp_history[-window_size:])
+                predictions.append((pred, w))
+            elif opp_history:
+                pred = self._compute_prediction(opp_history)
+                predictions.append((pred, w))
+
+        if not predictions:
+            return self.rng.choice(MOVES)
+
+        # Weighted combination
+        combined = {m: 0.0 for m in MOVES}
+        total_w = sum(w for _, w in predictions)
+        for pred, w in predictions:
+            for m in MOVES:
+                combined[m] += pred[m] * w / total_w
+
+        predicted = max(combined, key=combined.get)
+        return _counter_move(predicted)
+
+
+# ---------------------------------------------------------------------------
+# 76: Self-Model Detector (upgraded Anti-Strategy Detector)
+# ---------------------------------------------------------------------------
+
+class SelfModelDetector(Algorithm):
+    """Upgraded Anti-Strategy Detector with self-play opponent identification.
+
+    Original detects 5 simple archetypes. Self-Model Detector:
+    - Simulates what each of 10 candidate strategies would play
+    - Finds which strategy the opponent most closely resembles
+    - Plays the known counter to the detected strategy
+
+    Candidate strategies are simple enough to simulate inline:
+    constant, cycle, mirror, counter, frequency, markov, WSLS,
+    anti-tit-for-tat, pattern-trigger, decay frequency.
+    """
+    name = "Self-Model Detector"
+
+    def reset(self):
+        self._detector_scores = [0.0] * 10
+        self._detector_names = [
+            "constant", "cycle", "mirror", "counter",
+            "frequency", "markov", "wsls",
+            "anti_tft", "pattern_cycle", "decay_freq"
+        ]
+
+    def _simulate_prediction(self, detector_idx, my_history, opp_history, t):
+        """Simulate what detector i would predict for round t."""
+        if t < 2:
+            return Move.ROCK
+
+        # All predictions are for what the OPPONENT will play
+        if detector_idx == 0:  # Constant: repeats last
+            return opp_history[t-1]
+        elif detector_idx == 1:  # Cycle: R→P→S
+            return MOVES[(MOVES.index(opp_history[t-1]) + 1) % 3]
+        elif detector_idx == 2:  # Mirror: copies our last
+            return my_history[t-1] if t-1 < len(my_history) else Move.ROCK
+        elif detector_idx == 3:  # Counter: counters our last
+            return _counter_move(my_history[t-1]) if t-1 < len(my_history) else Move.ROCK
+        elif detector_idx == 4:  # Frequency: plays their most common
+            counts = Counter(opp_history[:t])
+            return counts.most_common(1)[0][0] if counts else Move.ROCK
+        elif detector_idx == 5:  # Markov: transition from last move
+            if t < 2:
+                return Move.ROCK
+            last = opp_history[t-1]
+            trans = Counter()
+            for j in range(t - 1):
+                if opp_history[j] == last and j + 1 < t:
+                    trans[opp_history[j + 1]] += 1
+            return trans.most_common(1)[0][0] if trans else last
+        elif detector_idx == 6:  # WSLS: win-stay lose-shift
+            if t < 2:
+                return Move.ROCK
+            opp_prev = opp_history[t-1]
+            my_prev = my_history[t-2] if t-2 < len(my_history) else Move.ROCK
+            if BEATS[opp_prev] == my_prev or opp_prev == my_prev:
+                return opp_prev  # opponent stays
+            else:
+                return _counter_move(my_prev)  # opponent shifts
+        elif detector_idx == 7:  # Anti-TFT: plays what beats our last
+            return _counter_move(my_history[t-1]) if t-1 < len(my_history) else Move.ROCK
+        elif detector_idx == 8:  # Pattern cycle: longer cycle detection
+            if t >= 6:
+                for period in [2, 3, 4]:
+                    match = True
+                    for k in range(period):
+                        if opp_history[t - 1 - k] != opp_history[t - 1 - k - period]:
+                            match = False
+                            break
+                    if match:
+                        return opp_history[t - period]
+            return opp_history[t-1]
+        elif detector_idx == 9:  # Decay frequency: recent-weighted
+            if t < 5:
+                return Move.ROCK
+            weight_sum = {m: 0.0 for m in MOVES}
+            for j in range(max(0, t - 30), t):
+                age = t - j
+                weight_sum[opp_history[j]] += 0.95 ** age
+            return max(weight_sum, key=weight_sum.get)
+
+        return Move.ROCK
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 6:
+            return self.rng.choice(MOVES)
+
+        # Score each detector on recent accuracy
+        t = len(opp_history)
+        actual = opp_history[-1]
+
+        decay = 0.9
+        for i in range(10):
+            self._detector_scores[i] *= decay
+            # What would this detector have predicted for the last round?
+            pred = self._simulate_prediction(i, my_history, opp_history, t - 1)
+            if pred == actual:
+                self._detector_scores[i] += 1.0
+
+        # Predict NEXT move with each detector
+        predictions = []
+        for i in range(10):
+            predictions.append(self._simulate_prediction(i, my_history, opp_history, t))
+
+        # Use best detector's prediction
+        best = self._detector_scores.index(max(self._detector_scores))
+        return _counter_move(predictions[best])
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
@@ -3817,6 +4590,10 @@ ALL_ALGORITHM_CLASSES = [
     QLearnerV5, ThompsonSamplerV5, UCBExplorerV5, GradientLearnerV5,
     # New-Field Algorithms (67-71)
     HiddenMarkovOracle, GeneticStrategist, PIDController, ChaosEngine, LevelKReasoner,
+    # Hybrid Fusion (72)
+    UCBNGramFusion,
+    # Upgraded Competitive (73-76)
+    IocainePowderPlus, DynamicMixture, HierarchicalBayesian, SelfModelDetector,
 ]
 
 

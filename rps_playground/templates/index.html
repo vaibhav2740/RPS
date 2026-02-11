@@ -71,22 +71,75 @@
             text-align: center;
             padding: 48px 0 32px;
         }
+        .logo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            margin-bottom: 8px;
+        }
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            flex-shrink: 0;
+            filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.4));
+            animation: logoPulse 3s ease-in-out infinite;
+        }
+        @keyframes logoPulse {
+            0%, 100% { filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.4)); transform: scale(1); }
+            50% { filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.5)); transform: scale(1.04); }
+        }
         .logo {
             font-size: 3rem;
             font-weight: 800;
-            background: var(--gradient-main);
+            background: linear-gradient(135deg, #06b6d4, #8b5cf6, #ec4899, #06b6d4);
+            background-size: 300% 300%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
             letter-spacing: -1px;
-            margin-bottom: 8px;
+            animation: gradientShift 6s ease infinite;
         }
-        .logo span { font-size: 3.2rem; }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .subtitle-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
         .subtitle {
             color: var(--text-secondary);
             font-size: 1.05rem;
             font-weight: 400;
             letter-spacing: 0.5px;
+        }
+        .algo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 12px;
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(139, 92, 246, 0.15));
+            border: 1px solid rgba(6, 182, 212, 0.25);
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            letter-spacing: 0.3px;
+        }
+        .algo-badge .dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: dotBlink 2s ease-in-out infinite;
+        }
+        @keyframes dotBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
 
         /* ===== TAB NAVIGATION ===== */
@@ -599,6 +652,8 @@
         /* ===== RESPONSIVE ===== */
         @media (max-width: 640px) {
             .logo { font-size: 2rem; }
+            .logo-icon { width: 40px; height: 40px; }
+            .logo-row { gap: 10px; }
             .form-row { flex-direction: column; gap: 12px; }
             .form-group { min-width: 100%; }
             .stats-grid { grid-template-columns: 1fr; gap: 24px; }
@@ -613,8 +668,34 @@
     <div class="container">
         <!-- HEADER -->
         <header>
-            <h1 class="logo"><span>🎮</span> RPS Playground</h1>
-            <p class="subtitle">Algorithm Battle Arena · Elo Rated</p>
+            <div class="logo-row">
+                <svg class="logo-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="rpsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#06b6d4"/>
+                            <stop offset="50%" stop-color="#8b5cf6"/>
+                            <stop offset="100%" stop-color="#ec4899"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- Outer ring -->
+                    <circle cx="50" cy="50" r="46" fill="none" stroke="url(#rpsGrad)" stroke-width="3" opacity="0.6"/>
+                    <!-- Rock (fist) -->
+                    <text x="50" y="30" text-anchor="middle" font-size="22" dominant-baseline="central">✊</text>
+                    <!-- Paper (hand) -->
+                    <text x="27" y="72" text-anchor="middle" font-size="22" dominant-baseline="central">✋</text>
+                    <!-- Scissors -->
+                    <text x="73" y="72" text-anchor="middle" font-size="22" dominant-baseline="central">✌️</text>
+                    <!-- Connecting arrows (triangle) -->
+                    <path d="M50 40 L30 66" stroke="url(#rpsGrad)" stroke-width="1.5" fill="none" opacity="0.4"/>
+                    <path d="M30 66 L70 66" stroke="url(#rpsGrad)" stroke-width="1.5" fill="none" opacity="0.4"/>
+                    <path d="M70 66 L50 40" stroke="url(#rpsGrad)" stroke-width="1.5" fill="none" opacity="0.4"/>
+                </svg>
+                <h1 class="logo">RPS Playground</h1>
+            </div>
+            <div class="subtitle-row">
+                <p class="subtitle">Algorithm Battle Arena · Elo Rated</p>
+                <span class="algo-badge"><span class="dot"></span>76 bots</span>
+            </div>
         </header>
 
         <!-- TABS -->
