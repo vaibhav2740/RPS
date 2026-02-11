@@ -1,6 +1,6 @@
 # 🎮 RPS Playground — Algorithm Battle Arena
 
-A modular Rock-Paper-Scissors algorithm testing playground with **57 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
+A modular Rock-Paper-Scissors algorithm testing playground with **62 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
 
 ---
 
@@ -67,7 +67,7 @@ Run a single match between any two algorithms.
 
 ### 🏆 Tournament
 
-Full round-robin — every algorithm plays every other algorithm (1596 matches total with 57 bots).
+Full round-robin — every algorithm plays every other algorithm (1891 matches total with 62 bots).
 
 1. **Set rounds per match** and optional **seed**
 2. Click **🏆 RUN**
@@ -76,7 +76,7 @@ Full round-robin — every algorithm plays every other algorithm (1596 matches t
 
 ### 🤖 One vs All
 
-Test a single algorithm against the entire pool of 57 bots.
+Test a single algorithm against the entire pool of 62 bots.
 
 1. **Select your algorithm** from the dropdown
 2. **Set rounds** and optional **seed**
@@ -88,7 +88,7 @@ Test a single algorithm against the entire pool of 57 bots.
 
 ## 🤖 Algorithm Reference
 
-All 57 algorithms explained in detail.
+All 62 algorithms explained in detail.
 
 > **Notation used throughout:**
 > - `counter(X)` = the move that beats X. So `counter(Rock) = Paper`, `counter(Paper) = Scissors`, `counter(Scissors) = Rock`.
@@ -757,7 +757,7 @@ Round t:
 
 Tabular **Q-Learning** — the classic RL algorithm. Maintains a table of Q-values: `Q(state, action) → expected reward`. Learns which move to play in each situation through trial and error.
 
-**State space (v3):** `(my[-1], opp[-1], opp[-2])` → 27 states + warm-up states = **81+ Q-values** total. Captures 2nd-order transitions. **Pre-trained** via self-play against 5 archetypal opponents (80 rounds each = 400 rounds of experience before the real match).
+**State space (v4):** `(my[-1], opp[-1], opp[-2], last_outcome)` → 81 states + warm-up = **243+ Q-values**. **Experience replay:** stores 200 transitions, replays 10 random ones per round for multi-pass learning (DQN-inspired). **Pre-trained** via 120-round self-play against 5 archetypes.
 
 **Learning rule (after each round):**
 ```
@@ -1293,8 +1293,123 @@ Fake patterns rotate: Heavy-R → Heavy-P → Heavy-S
 
 ---
 
+### 58. Deep Historian 📖🔬
+**Type:** Upgraded Historian \u00b7 **Complexity:** High
+
+An upgraded version of Historian (#22) with 4 major improvements:
+
+```
+Original Historian: fixed length-4, opponent-only patterns, no weighting
+Deep Historian:     variable length 2-5, joint (my,opp) patterns, recency decay
+
+Pattern matching:
+  Current context: [(my, opp)] pairs from last 5 rounds
+  Search all history for matching joint patterns
+  Weight matches: weight = 0.95^age (recent = higher)
+  Predict: argmax of weighted continuation counts
+
+Try lengths: 5 → 4 → 3 → 2 (longest match wins)
+  Only predict if total_weight > 0.5 (enough confidence)
+```
+
+**Key upgrade:** Joint patterns capture **interactive** dynamics — e.g., "whenever I played Rock and they played Scissors, then I played Paper and they played Rock, they next play Scissors." Original Historian only sees opponent moves.
+
+---
+
+### 59. Adaptive N-Gram 📊🔬
+**Type:** Upgraded N-Gram Predictor \u00b7 **Complexity:** Very High
+
+An upgraded version of N-Gram Predictor (#39) with meta-learning:
+
+```
+Improvements over original N-Gram:
+  1. Dynamic context: tries n=5,4,3,2,1 (original: 3,2,1)
+  2. Decay-weighted: weight = 0.9^age (recent transitions 3× heavier)
+  3. Accuracy tracking: learns which n works best per opponent
+  4. Joint (my,opp) contexts overlaid on opponent-only contexts
+
+Meta-learner:
+  accuracy[n] *= 0.95                    (decay)
+  if prediction from n was correct:
+    accuracy[n] += 1.0                   (reward)
+
+  best_n = argmax(accuracy[n] × confidence[n])
+```
+
+**vs Context Tree (#51):** Context Tree uses Bayesian CTW theory with a fixed weighting prior. Adaptive N-Gram uses **empirical accuracy tracking** — it learns which context length works best for THIS specific opponent.
+
+---
+
+### 60. Regret Minimizer ♠\ufe0f
+**Type:** Game Theory / Online Learning \u00b7 **Complexity:** High
+
+**Regret Matching** — the core algorithm behind **Libratus and Pluribus**, the AIs that beat world champions at poker.
+
+```
+After each round:
+  For each possible move m:
+    regret(m) += payoff(m, opp_move) - payoff(my_actual_move, opp_move)
+
+Strategy:
+  If any regret > 0:
+    strategy(m) = max(0, regret(m)) / Σ max(0, regret(m'))
+  Else:
+    strategy = uniform random (1/3, 1/3, 1/3)
+
+Play: sample from strategy distribution
+```
+
+**Theoretical guarantee:** Converges to **Nash equilibrium** — in RPS, that's (1/3, 1/3, 1/3). Against a Nash-playing opponent, it draws. Against a non-Nash opponent, it **exploits their deviations**. Average regret goes to 0 as T → ∞.
+
+---
+
+### 61. Fourier Predictor 📐🎵
+**Type:** Signal Processing / Frequency Analysis \u00b7 **Complexity:** Very High
+
+Applies the **Discrete Fourier Transform (DFT)** to detect hidden periodic patterns in the opponent's move sequence.
+
+```
+Encode moves: R=0, P=1, S=2 → signal x[n]
+
+DFT: X[k] = Σ x[n] × e^(-2πi·k·n/N)  for k = 1..N/2
+
+Steps:
+  1. Window last 64 moves
+  2. Compute DFT manually (no numpy)
+  3. Find top 3 dominant frequency components
+  4. Extrapolate signal to predict x[N]
+  5. Map back to move and counter
+```
+
+**Why DFT works:** If the opponent has ANY periodic pattern (Cycle=period 3, Fibonacci=period 8, De Bruijn=period 27), the DFT will find the dominant frequency. Even noisy periodicity is detectable.
+
+---
+
+### 62. Eigenvalue Predictor 📐🔢
+**Type:** Linear Algebra / Markov Analysis \u00b7 **Complexity:** High
+
+Builds the opponent's 3\u00d73 **transition matrix** and uses **power iteration** to compute the dominant eigenvector (stationary distribution).
+
+```
+Transition matrix M:
+  M[i][j] = P(opp plays j | opp played i)
+
+Power iteration (10 steps):
+  π₀ = [1/3, 1/3, 1/3]
+  π(t+1) = M^T × π(t)
+  → converges to stationary distribution π*
+
+Prediction: 60% current-row + 40% stationary
+  P(next) = 0.6 × M[opp[-1]] + 0.4 × π*
+```
+
+**vs Markov Predictor (#10):** Markov only uses the current transition row. Eigenvalue Predictor blends the transition with the **long-term stationary behavior**, capturing both what the opponent does AFTER their last move AND their overall bias.
+
+---
+
 
 ## 📊 Elo Rating System
+
 
 
 - **Starting Elo**: 1500 for all algorithms
@@ -1347,7 +1462,7 @@ ALL_ALGORITHM_CLASSES = [
 rps_playground/
 ├── __init__.py          # Package init
 ├── engine.py            # Core: Move enum, winner logic, MatchResult, run_match
-├── algorithms.py        # 49 algorithms + base class + registry
+├── algorithms.py        # 62 algorithms + base class + registry
 ├── tournament.py        # 3 modes: head-to-head, one-vs-all, round-robin
 ├── stats.py             # Elo system, leaderboard, H2H matrix, pretty-print
 ├── export.py            # JSON and CSV export
@@ -1366,7 +1481,7 @@ python3 -m rps_playground.main <command> [options]
 
 Commands:
   head-to-head   Mode 1: Algo A vs Algo B
-  one-vs-all     Mode 2: Custom algo vs all 57 bots
+  one-vs-all     Mode 2: Custom algo vs all 62 bots
   tournament     Mode 3: Full round-robin tournament
 
 Global:

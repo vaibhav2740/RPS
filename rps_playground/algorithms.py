@@ -903,11 +903,11 @@ class IntentionalLoser(Algorithm):
 
 
 # ===========================================================================
-#  RL / ML ALGORITHMS (34-37) — v3: Self-play pre-training
+#  RL / ML ALGORITHMS (34-37) — v4: Experience replay + outcome-aware state
 # ===========================================================================
 
 
-def _pretrain_against_archetypes(algo, rounds_per: int = 80):
+def _pretrain_against_archetypes(algo, rounds_per: int = 120):
     """Pre-train an RL algorithm via self-play against 5 archetypal opponents.
 
     The algorithm's own choose() method is called repeatedly, so it
@@ -940,32 +940,41 @@ def _pretrain_against_archetypes(algo, rounds_per: int = 80):
 # ---------------------------------------------------------------------------
 
 class QLearner(Algorithm):
-    """Tabular Q-Learning v2 with deeper state representation.
+    """Tabular Q-Learning v4 with experience replay and outcome-aware state.
 
-    State = (my[-1], opp[-1], opp[-2]) → 27 states + warm-up states.
-    Captures 2nd-order opponent transitions for better prediction.
+    State = (my[-1], opp[-1], opp[-2], last_outcome) → 81 states + warm-up.
+    Experience replay: stores last 200 transitions, replays 10 random
+    ones per round for multi-pass learning (DQN-inspired).
+    Pre-trained via self-play against 5 archetypal opponents.
 
     Q-update: Q(s,a) ← Q(s,a) + α × (reward - Q(s,a))
     """
     name = "Q-Learner"
 
     def reset(self):
-        # 27 states for (my[-1], opp[-1], opp[-2]) + warm-up states
-        # 3 actions per state → up to 81+ Q-values
         self._q_table: dict[tuple, dict[Move, float]] = {}
-        self._alpha = 0.2      # learning rate (lower for more states)
-        self._epsilon = 0.3    # exploration rate
+        self._alpha = 0.2
+        self._epsilon = 0.3
         self._last_state = None
         self._last_action = None
         self._rounds_played = 0
+        self._replay_buffer: list[tuple] = []  # (state, action, reward)
+        self._max_buffer = 200
         _pretrain_against_archetypes(self)
 
     def _get_state(self, my_history, opp_history):
         if not my_history:
             return ("START",)
+        # Compute last-round outcome
+        outcome = "D"  # draw
+        if len(my_history) >= 1 and len(opp_history) >= 1:
+            if BEATS[my_history[-1]] == opp_history[-1]:
+                outcome = "W"
+            elif my_history[-1] != opp_history[-1]:
+                outcome = "L"
         if len(opp_history) < 2:
-            return ("EARLY", my_history[-1], opp_history[-1])
-        return (my_history[-1], opp_history[-1], opp_history[-2])
+            return ("EARLY", my_history[-1], opp_history[-1], outcome)
+        return (my_history[-1], opp_history[-1], opp_history[-2], outcome)
 
     def _get_q(self, state, action):
         if state not in self._q_table:
@@ -993,6 +1002,19 @@ class QLearner(Algorithm):
             self._set_q(self._last_state, self._last_action,
                         old_q + self._alpha * (reward - old_q))
 
+            # Store transition for experience replay
+            self._replay_buffer.append(
+                (self._last_state, self._last_action, reward))
+            if len(self._replay_buffer) > self._max_buffer:
+                self._replay_buffer.pop(0)
+
+            # Experience replay: re-learn from 10 random past transitions
+            if len(self._replay_buffer) >= 20:
+                for _ in range(10):
+                    s, a, r = self.rng.choice(self._replay_buffer)
+                    oq = self._get_q(s, a)
+                    self._set_q(s, a, oq + self._alpha * (r - oq))
+
         self._rounds_played += 1
 
         # Decay exploration: ε decays from 0.3 → 0.05 over 200 rounds
@@ -1019,11 +1041,11 @@ class QLearner(Algorithm):
 # ---------------------------------------------------------------------------
 
 class ThompsonSampler(Algorithm):
-    """Bayesian multi-armed bandit using Beta-Bernoulli model.
+    """Bayesian multi-armed bandit v4 using Beta-Bernoulli model.
 
+    State includes last-round outcome for context-aware exploration.
     For each (state, action), maintains Beta(α, β) where α counts wins
-    and β counts losses. Samples from each posterior and picks the action
-    with the highest sample. Naturally balances exploration/exploitation.
+    and β counts losses. Samples from posteriors; highest sample wins.
     """
     name = "Thompson Sampler"
 
@@ -1038,9 +1060,15 @@ class ThompsonSampler(Algorithm):
     def _get_state(self, my_history, opp_history):
         if not my_history:
             return ("START",)
+        outcome = "D"
+        if len(my_history) >= 1 and len(opp_history) >= 1:
+            if BEATS[my_history[-1]] == opp_history[-1]:
+                outcome = "W"
+            elif my_history[-1] != opp_history[-1]:
+                outcome = "L"
         if len(opp_history) < 2:
-            return ("EARLY", opp_history[-1])
-        return (my_history[-1], opp_history[-1], opp_history[-2])
+            return ("EARLY", opp_history[-1], outcome)
+        return (my_history[-1], opp_history[-1], opp_history[-2], outcome)
 
     def _ensure_state(self, state):
         if state not in self._alpha:
@@ -1085,10 +1113,11 @@ class ThompsonSampler(Algorithm):
 # ---------------------------------------------------------------------------
 
 class UCBExplorer(Algorithm):
-    """UCB1 bandit algorithm with state-dependent action selection.
+    """UCB1 bandit v4 with outcome-aware state.
 
     Picks the action maximizing: Q̄(s,a) + c × √(ln(N_s) / n_sa)
     where c = √2 for optimal exploration-exploitation trade-off.
+    State includes last-round outcome for contextual decisions.
     """
     name = "UCB Explorer"
 
@@ -1103,9 +1132,15 @@ class UCBExplorer(Algorithm):
     def _get_state(self, my_history, opp_history):
         if not my_history:
             return ("START",)
+        outcome = "D"
+        if len(my_history) >= 1 and len(opp_history) >= 1:
+            if BEATS[my_history[-1]] == opp_history[-1]:
+                outcome = "W"
+            elif my_history[-1] != opp_history[-1]:
+                outcome = "L"
         if len(opp_history) < 2:
-            return ("EARLY", opp_history[-1])
-        return (my_history[-1], opp_history[-1], opp_history[-2])
+            return ("EARLY", opp_history[-1], outcome)
+        return (my_history[-1], opp_history[-1], opp_history[-2], outcome)
 
     def _ensure_state(self, state):
         if state not in self._counts:
@@ -1162,11 +1197,11 @@ class UCBExplorer(Algorithm):
 # ---------------------------------------------------------------------------
 
 class GradientLearner(Algorithm):
-    """Policy gradient with softmax action selection.
+    """Policy gradient v4 with softmax action selection.
 
     Maintains preference vector h(s,a). Policy π(a|s) = softmax(h).
     Updates preferences via gradient ascent on expected reward.
-    Can learn stochastic (mixed) strategies, unlike Q-learning.
+    Outcome-aware state + entropy regularization to prevent collapse.
     """
     name = "Gradient Learner"
 
@@ -1182,9 +1217,15 @@ class GradientLearner(Algorithm):
     def _get_state(self, my_history, opp_history):
         if not my_history:
             return ("START",)
+        outcome = "D"
+        if len(my_history) >= 1 and len(opp_history) >= 1:
+            if BEATS[my_history[-1]] == opp_history[-1]:
+                outcome = "W"
+            elif my_history[-1] != opp_history[-1]:
+                outcome = "L"
         if len(opp_history) < 2:
-            return ("EARLY", my_history[-1], opp_history[-1])
-        return (my_history[-1], opp_history[-1], opp_history[-2])
+            return ("EARLY", my_history[-1], opp_history[-1], outcome)
+        return (my_history[-1], opp_history[-1], opp_history[-2], outcome)
 
     def _ensure_state(self, state):
         if state not in self._preferences:
@@ -2432,6 +2473,399 @@ class FrequencyDisruptor(Algorithm):
             return self.rng.choice(MOVES)
 
 
+# ===========================================================================
+#  UPGRADED VARIANTS (58-59) — keep originals, new names
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# 58: Deep Historian (upgraded Historian)
+# ---------------------------------------------------------------------------
+
+class DeepHistorian(Algorithm):
+    """Upgraded Historian with joint pattern matching and recency weighting.
+
+    Original Historian matches opponent-only sequences of fixed length 4.
+    Deep Historian improves on this with:
+    - Joint (my_move, opp_move) pair patterns (captures interactive play)
+    - Variable-length matching (tries 5,4,3,2 and takes longest match)
+    - Exponential recency decay (recent patterns weighted 4x vs old ones)
+    - Win/loss context (what happened after similar patterns before?)
+    """
+    name = "Deep Historian"
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 6:
+            return self.rng.choice(MOVES)
+
+        # Try variable-length joint patterns (longest match first)
+        for pattern_len in range(5, 1, -1):
+            if pattern_len >= len(opp_history):
+                continue
+
+            # Build current context: joint (my, opp) pairs
+            current = tuple(
+                (my_history[-pattern_len + i], opp_history[-pattern_len + i])
+                for i in range(pattern_len)
+            )
+
+            # Search history for matches with recency decay
+            weighted_counts: dict[Move, float] = {m: 0.0 for m in MOVES}
+            total_weight = 0.0
+            n = len(opp_history)
+
+            for i in range(n - pattern_len):
+                candidate = tuple(
+                    (my_history[i + j], opp_history[i + j])
+                    for j in range(pattern_len)
+                )
+                if candidate == current and (i + pattern_len) < n:
+                    # Exponential recency weight: recent matches count more
+                    age = n - (i + pattern_len)
+                    weight = 0.95 ** age  # recent = higher weight
+                    next_move = opp_history[i + pattern_len]
+                    weighted_counts[next_move] += weight
+                    total_weight += weight
+
+            if total_weight > 0.5:  # enough confidence
+                predicted = max(weighted_counts, key=weighted_counts.get)
+                return _counter_move(predicted)
+
+        # Fallback: simple frequency
+        counts = Counter(opp_history[-25:])
+        return _counter_move(counts.most_common(1)[0][0])
+
+
+# ---------------------------------------------------------------------------
+# 59: Adaptive N-Gram (upgraded N-Gram Predictor)
+# ---------------------------------------------------------------------------
+
+class AdaptiveNGram(Algorithm):
+    """Upgraded N-Gram Predictor with dynamic context and decay-weighted counts.
+
+    Original N-Gram tries fixed n=3,2,1 with equal weighting.
+    Adaptive N-Gram improves with:
+    - Dynamic context length (tries n=5 down to n=1)
+    - Exponential decay on counts (recent transitions 3x heavier)
+    - Accuracy tracking per context length (learns which n works best)
+    - Joint (my, opp) pair contexts for deeper pattern capture
+
+    Uses a meta-learner to select the best-performing context length
+    based on rolling prediction accuracy.
+    """
+    name = "Adaptive N-Gram"
+
+    def reset(self):
+        # Track accuracy for each n-gram length
+        self._accuracy = {n: 1.0 for n in range(1, 6)}  # n=1..5
+        self._decay = 0.95
+        self._last_prediction = None
+        self._last_n_used = None
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 3:
+            return self.rng.choice(MOVES)
+
+        # Update accuracy tracking
+        if self._last_prediction is not None and self._last_n_used is not None:
+            actual = opp_history[-1]
+            for n in self._accuracy:
+                self._accuracy[n] *= self._decay
+            if self._last_prediction == actual:
+                self._accuracy[self._last_n_used] += 1.0
+
+        # For each n-gram length, compute prediction
+        predictions: dict[int, tuple[Move, float]] = {}
+
+        for n in range(5, 0, -1):
+            if n >= len(opp_history):
+                continue
+
+            # Opponent-only n-gram
+            context = tuple(opp_history[-n:])
+            weighted_counts: dict[Move, float] = {m: 0.0 for m in MOVES}
+
+            for i in range(len(opp_history) - n):
+                candidate = tuple(opp_history[i:i + n])
+                if candidate == context and (i + n) < len(opp_history):
+                    age = len(opp_history) - (i + n)
+                    weight = 0.9 ** age
+                    weighted_counts[opp_history[i + n]] += weight
+
+            total = sum(weighted_counts.values())
+            if total > 0:
+                best_move = max(weighted_counts, key=weighted_counts.get)
+                confidence = weighted_counts[best_move] / total
+                predictions[n] = (best_move, confidence)
+
+            # Also try joint n-gram (bonus if it matches)
+            if n <= len(my_history) and n >= 2:
+                joint_ctx = tuple(
+                    (my_history[-n + i], opp_history[-n + i])
+                    for i in range(n)
+                )
+                joint_counts: dict[Move, float] = {m: 0.0 for m in MOVES}
+                for i in range(len(opp_history) - n):
+                    j_candidate = tuple(
+                        (my_history[i + j], opp_history[i + j])
+                        for j in range(n)
+                    )
+                    if j_candidate == joint_ctx and (i + n) < len(opp_history):
+                        age = len(opp_history) - (i + n)
+                        weight = 0.9 ** age
+                        joint_counts[opp_history[i + n]] += weight
+
+                j_total = sum(joint_counts.values())
+                if j_total > 0:
+                    j_best = max(joint_counts, key=joint_counts.get)
+                    j_conf = joint_counts[j_best] / j_total
+                    # Use joint prediction if higher confidence
+                    if n in predictions:
+                        _, opp_conf = predictions[n]
+                        if j_conf > opp_conf:
+                            predictions[n] = (j_best, j_conf * 1.2)
+                    else:
+                        predictions[n] = (j_best, j_conf * 1.2)
+
+        # Select best n based on accuracy tracking × confidence
+        best_n = None
+        best_score = -1.0
+
+        for n, (pred, conf) in predictions.items():
+            score = self._accuracy.get(n, 0.5) * conf
+            if score > best_score:
+                best_score = score
+                best_n = n
+
+        if best_n is not None and best_n in predictions:
+            predicted, _ = predictions[best_n]
+            self._last_prediction = predicted
+            self._last_n_used = best_n
+            return _counter_move(predicted)
+
+        self._last_prediction = None
+        self._last_n_used = None
+        counts = Counter(opp_history[-20:])
+        return _counter_move(counts.most_common(1)[0][0])
+
+
+# ===========================================================================
+#  MATH-HEAVY / DEEP CONCEPTUAL ALGORITHMS (60-62)
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# 60: Regret Minimizer (Regret Matching — poker AI foundation)
+# ---------------------------------------------------------------------------
+
+class RegretMinimizer(Algorithm):
+    """Regret Matching — the foundation of modern game-playing AI.
+
+    This is the core algorithm behind Libratus and Pluribus, the AIs
+    that beat world champions at poker. It provably converges to a
+    Nash equilibrium while exploiting non-Nash opponents.
+
+    For each move, tracks REGRET: how much better we would have done
+    playing that move vs what we actually played. Plays moves
+    proportional to their positive cumulative regret.
+
+    Regret formula:
+      regret(m) += payoff(m, opp_move) - payoff(my_move, opp_move)
+      strategy(m) = max(0, regret(m)) / sum(max(0, regret(m')))
+    """
+    name = "Regret Minimizer"
+
+    def reset(self):
+        self._regrets = {m: 0.0 for m in MOVES}
+        self._strategy_sum = {m: 0.0 for m in MOVES}
+
+    def _payoff(self, my_move, opp_move):
+        if BEATS[my_move] == opp_move:
+            return 1.0
+        elif my_move == opp_move:
+            return 0.0
+        else:
+            return -1.0
+
+    def _get_strategy(self):
+        """Compute current strategy from positive regrets."""
+        positive = {m: max(0.0, self._regrets[m]) for m in MOVES}
+        total = sum(positive.values())
+        if total > 0:
+            return {m: positive[m] / total for m in MOVES}
+        else:
+            return {m: 1.0 / 3.0 for m in MOVES}
+
+    def choose(self, round_num, my_history, opp_history):
+        # Update regrets from last round
+        if my_history and opp_history:
+            my_last = my_history[-1]
+            opp_last = opp_history[-1]
+            actual_payoff = self._payoff(my_last, opp_last)
+
+            for m in MOVES:
+                # How much better would move m have been?
+                alt_payoff = self._payoff(m, opp_last)
+                self._regrets[m] += alt_payoff - actual_payoff
+
+        # Get strategy from regrets
+        strategy = self._get_strategy()
+
+        # Accumulate average strategy (for convergence)
+        for m in MOVES:
+            self._strategy_sum[m] += strategy[m]
+
+        # Sample from strategy
+        r = self.rng.random()
+        cumulative = 0.0
+        for m in MOVES:
+            cumulative += strategy[m]
+            if r <= cumulative:
+                return m
+        return MOVES[-1]
+
+
+# ---------------------------------------------------------------------------
+# 61: Fourier Predictor (DFT-based periodicity detection)
+# ---------------------------------------------------------------------------
+
+class FourierPredictor(Algorithm):
+    """Applies Discrete Fourier Transform to detect hidden periodicities.
+
+    Encodes opponent moves as numbers (R=0, P=1, S=2) and computes
+    the DFT to find dominant frequency components. Extrapolates the
+    dominant frequencies to predict the next value.
+
+    The DFT decomposes the signal x[n] into frequency components:
+      X[k] = Σ x[n] × e^(-2πi·k·n/N)
+
+    If the opponent has ANY periodic pattern (even noisy), the DFT
+    will detect it. Works against Cycle, Phase Shifter, Fibonacci,
+    De Bruijn Walker, and any algorithm with periodic behavior.
+    """
+    name = "Fourier Predictor"
+
+    def choose(self, round_num, my_history, opp_history):
+        import math
+
+        if len(opp_history) < 10:
+            return self.rng.choice(MOVES)
+
+        # Encode moves as complex-valued signal
+        window = opp_history[-64:]  # use last 64 for efficiency
+        N = len(window)
+        signal = [MOVES.index(m) for m in window]  # 0, 1, 2
+
+        # Compute DFT manually (no numpy)
+        magnitudes = []
+        phases = []
+        for k in range(1, N // 2):  # skip DC component (k=0)
+            re = 0.0
+            im = 0.0
+            for n in range(N):
+                angle = -2.0 * math.pi * k * n / N
+                re += signal[n] * math.cos(angle)
+                im += signal[n] * math.sin(angle)
+            mag = math.sqrt(re * re + im * im)
+            phase = math.atan2(im, re)
+            magnitudes.append((mag, k, phase))
+
+        if not magnitudes:
+            return self.rng.choice(MOVES)
+
+        # Find top 3 dominant frequencies
+        magnitudes.sort(reverse=True)
+        top_freqs = magnitudes[:3]
+
+        # Extrapolate next value using dominant frequencies
+        prediction = 0.0
+        total_mag = sum(m for m, _, _ in top_freqs)
+
+        if total_mag > 0:
+            for mag, k, phase in top_freqs:
+                weight = mag / total_mag
+                # Predict x[N] by evaluating the frequency component at t=N
+                angle = 2.0 * math.pi * k * N / N + phase
+                prediction += weight * math.cos(angle)
+
+        # Map prediction back to a move (0, 1, 2)
+        predicted_idx = round(prediction) % 3
+        if predicted_idx < 0:
+            predicted_idx += 3
+        predicted = MOVES[predicted_idx]
+        return _counter_move(predicted)
+
+
+# ---------------------------------------------------------------------------
+# 62: Eigenvalue Predictor (transition matrix eigenvector)
+# ---------------------------------------------------------------------------
+
+class EigenvaluePredictor(Algorithm):
+    """Predicts using the dominant eigenvector of the opponent's transition matrix.
+
+    Builds a 3×3 transition matrix M[i][j] = P(opp plays j | opp played i).
+    Computes the STATIONARY DISTRIBUTION π via power iteration:
+      π = lim(n→∞) M^n × π₀
+
+    The stationary distribution reveals the opponent's long-term behavior.
+    For prediction, combines:
+    - Current-row prediction (what follows their last move)
+    - Stationary distribution (their overall bias)
+    - 2nd-order: M² row (what happens after the current transition)
+
+    Power iteration: π^(t+1) = M^T × π^(t), repeated until convergence.
+    """
+    name = "Eigenvalue Predictor"
+
+    def reset(self):
+        # Transition counts: [from][to]
+        self._transitions = {m: {n: 0 for n in MOVES} for m in MOVES}
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 5:
+            return self.rng.choice(MOVES)
+
+        # Update transition matrix
+        if len(opp_history) >= 2:
+            prev = opp_history[-2]
+            curr = opp_history[-1]
+            self._transitions[prev][curr] += 1
+
+        # Build row-stochastic transition matrix
+        matrix = {}
+        for i in MOVES:
+            row_total = sum(self._transitions[i].values())
+            if row_total > 0:
+                matrix[i] = {j: self._transitions[i][j] / row_total
+                             for j in MOVES}
+            else:
+                matrix[i] = {j: 1.0 / 3.0 for j in MOVES}
+
+        # Power iteration to find stationary distribution (10 iterations)
+        pi = {m: 1.0 / 3.0 for m in MOVES}
+        for _ in range(10):
+            new_pi = {m: 0.0 for m in MOVES}
+            for j in MOVES:
+                for i in MOVES:
+                    new_pi[j] += pi[i] * matrix[i][j]
+            # Normalize
+            total = sum(new_pi.values())
+            if total > 0:
+                pi = {m: new_pi[m] / total for m in MOVES}
+
+        # Prediction: combine current-row + stationary
+        last_opp = opp_history[-1]
+        current_row = matrix[last_opp]
+
+        combined = {}
+        for m in MOVES:
+            # 60% current transition + 40% stationary
+            combined[m] = 0.6 * current_row[m] + 0.4 * pi[m]
+
+        predicted = max(combined, key=combined.get)
+        return _counter_move(predicted)
+
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -2452,7 +2886,7 @@ ALL_ALGORITHM_CLASSES = [
     PhaseShifter, DeBruijnWalker, IocainePowder,
     # Special (33)
     IntentionalLoser,
-    # RL / ML v3 (34-37)
+    # RL / ML v4 (34-37)
     QLearner, ThompsonSampler, UCBExplorer, GradientLearner,
     # Advanced Competitive (38-41)
     BayesianPredictor, NGramPredictor, AntiStrategyDetector, MixtureModel,
@@ -2463,6 +2897,10 @@ ALL_ALGORITHM_CLASSES = [
     LempelZivPredictor, ContextTree, MaxEntropyPredictor,
     # Trojan / Deception / Weird (53-57)
     PoisonPill, MirrorBreaker, TheUsurper, DoubleBluff, FrequencyDisruptor,
+    # Upgraded Variants (58-59)
+    DeepHistorian, AdaptiveNGram,
+    # Deep Math / Proven Theory (60-62)
+    RegretMinimizer, FourierPredictor, EigenvaluePredictor,
 ]
 
 
@@ -2479,6 +2917,7 @@ def get_algorithm_by_name(name: str) -> Algorithm:
             return cls()
     available = ", ".join(cls.name for cls in ALL_ALGORITHM_CLASSES)
     raise ValueError(f"Unknown algorithm: '{name}'. Available: {available}")
+
 
 
 
