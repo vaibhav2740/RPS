@@ -1291,6 +1291,373 @@ class GradientLearner(Algorithm):
 
 
 # ===========================================================================
+#  RL v5: LINEAR FUNCTION APPROXIMATION (63-66 — new classes, v4 kept intact)
+# ===========================================================================
+
+
+def _build_feature_vector(my_history, opp_history, action, window: int = 30):
+    """Build a 16-dimensional feature vector for linear RL algorithms.
+
+    Features:
+      [0-2]   Action one-hot (R, P, S)
+      [3-5]   Opponent's last move one-hot (R, P, S)
+      [6-8]   Opponent frequency bias over last `window` rounds
+      [9-11]  Opponent transition probability from last move
+      [12-14] Last outcome one-hot (W, L, D)
+      [15]    Bias term (always 1.0)
+    """
+    phi = [0.0] * 16
+
+    # Action one-hot
+    phi[MOVES.index(action)] = 1.0
+
+    # Opponent's last move one-hot
+    if opp_history:
+        phi[3 + MOVES.index(opp_history[-1])] = 1.0
+
+    # Opponent frequency bias (last `window` rounds)
+    if opp_history:
+        recent = opp_history[-window:] if len(opp_history) > window else opp_history
+        n = len(recent)
+        for m in recent:
+            phi[6 + MOVES.index(m)] += 1.0 / n
+
+    # Opponent transition probability from last move
+    if len(opp_history) >= 2:
+        last_opp = opp_history[-1]
+        transitions = [0, 0, 0]
+        total_trans = 0
+        for k in range(len(opp_history) - 1):
+            if opp_history[k] == last_opp:
+                transitions[MOVES.index(opp_history[k + 1])] += 1
+                total_trans += 1
+        if total_trans > 0:
+            for j in range(3):
+                phi[9 + j] = transitions[j] / total_trans
+
+    # Last outcome one-hot
+    if my_history and opp_history:
+        if BEATS[my_history[-1]] == opp_history[-1]:
+            phi[12] = 1.0  # WIN
+        elif my_history[-1] != opp_history[-1]:
+            phi[13] = 1.0  # LOSS
+        else:
+            phi[14] = 1.0  # DRAW
+
+    # Bias
+    phi[15] = 1.0
+    return phi
+
+
+def _dot(w, phi):
+    """Dot product of two lists."""
+    return sum(a * b for a, b in zip(w, phi))
+
+
+# ---------------------------------------------------------------------------
+# 63: Q-Learner v5 (Linear Function Approximation)
+# ---------------------------------------------------------------------------
+
+class QLearnerV5(Algorithm):
+    """Q-Learning v5 with linear function approximation.
+
+    Replaces tabular Q(s,a) with Q(s,a) = wᵀ·φ(s,a) where φ is a
+    16-dim feature vector per action (48 weights total).
+    SGD update: w ← w + α·δ·φ where δ = r - Q(s,a).
+    Experience replay performs SGD on past transitions.
+    """
+    name = "Q-Learner v5"
+
+    def reset(self):
+        self._w = [0.0] * 48  # 16 features × 3 actions
+        self._alpha = 0.05
+        self._epsilon = 0.3
+        self._rounds_played = 0
+        self._last_action = None
+        self._last_phi_idx = None  # (start_idx, phi)
+        self._replay_buffer: list[tuple] = []
+        self._max_buffer = 200
+        _pretrain_against_archetypes(self)
+
+    def _q_value(self, my_history, opp_history, action):
+        phi = _build_feature_vector(my_history, opp_history, action)
+        idx = MOVES.index(action) * 16
+        return _dot(self._w[idx:idx+16], phi), phi, idx
+
+    def _sgd_update(self, start_idx, phi, delta):
+        for i in range(16):
+            self._w[start_idx + i] += self._alpha * delta * phi[i]
+
+    def choose(self, round_num, my_history, opp_history):
+        # Update from last round
+        if self._last_action is not None and len(my_history) >= 1:
+            my_last = my_history[-1]
+            opp_last = opp_history[-1]
+            if BEATS[my_last] == opp_last:
+                reward = 1.0
+            elif my_last == opp_last:
+                reward = 0.0
+            else:
+                reward = -1.0
+
+            old_q = _dot(
+                self._w[self._last_phi_idx[0]:self._last_phi_idx[0]+16],
+                self._last_phi_idx[1]
+            )
+            delta = reward - old_q
+            self._sgd_update(self._last_phi_idx[0], self._last_phi_idx[1], delta)
+
+            # Experience replay
+            self._replay_buffer.append(
+                (self._last_phi_idx[0], self._last_phi_idx[1], reward))
+            if len(self._replay_buffer) > self._max_buffer:
+                self._replay_buffer.pop(0)
+            if len(self._replay_buffer) >= 20:
+                for _ in range(10):
+                    s_idx, s_phi, r = self.rng.choice(self._replay_buffer)
+                    oq = _dot(self._w[s_idx:s_idx+16], s_phi)
+                    self._sgd_update(s_idx, s_phi, r - oq)
+
+        self._rounds_played += 1
+        self._epsilon = max(0.05, 0.3 * (0.99 ** self._rounds_played))
+
+        # ε-greedy
+        if self.rng.random() < self._epsilon:
+            action = self.rng.choice(MOVES)
+            _, phi, idx = self._q_value(my_history, opp_history, action)
+        else:
+            best_q, best_action, best_phi, best_idx = -1e9, MOVES[0], None, 0
+            for m in MOVES:
+                q, phi, idx = self._q_value(my_history, opp_history, m)
+                if q > best_q:
+                    best_q, best_action, best_phi, best_idx = q, m, phi, idx
+            action, phi, idx = best_action, best_phi, best_idx
+
+        self._last_action = action
+        self._last_phi_idx = (idx, phi)
+        return action
+
+
+# ---------------------------------------------------------------------------
+# 64: Thompson Sampler v5 (Bayesian Linear Regression)
+# ---------------------------------------------------------------------------
+
+class ThompsonSamplerV5(Algorithm):
+    """Thompson Sampler v5 with Bayesian linear regression on features.
+
+    Instead of Beta distributions per (state, action), maintains a
+    Bayesian linear model per action: posterior N(μ, Σ) where
+    Σ⁻¹ = λI + Σ φφᵀ and μ = Σ · Σ φr.
+    Samples weights from posterior, picks action with highest Q-sample.
+    """
+    name = "Thompson Sampler v5"
+
+    def reset(self):
+        import numpy as np
+        self._np = np
+        d = 16  # feature dimension
+        self._lambda = 1.0  # prior precision
+        # Per action: (A = Σ⁻¹, b = Σ φr)
+        self._A = [np.eye(d) * self._lambda for _ in range(3)]
+        self._b = [np.zeros(d) for _ in range(3)]
+        self._last_action = None
+        self._last_phi = None
+        _pretrain_against_archetypes(self)
+
+    def choose(self, round_num, my_history, opp_history):
+        np = self._np
+
+        # Update from last round
+        if self._last_action is not None and len(my_history) >= 1:
+            my_last = my_history[-1]
+            opp_last = opp_history[-1]
+            if BEATS[my_last] == opp_last:
+                reward = 1.0
+            elif my_last == opp_last:
+                reward = 0.0
+            else:
+                reward = -1.0
+
+            a_idx = MOVES.index(self._last_action)
+            phi = np.array(self._last_phi)
+            self._A[a_idx] += np.outer(phi, phi)
+            self._b[a_idx] += reward * phi
+
+        # Thompson sampling: sample weights from posterior, pick best action
+        best_q, best_action = -1e9, MOVES[0]
+        best_phi = None
+        for m in MOVES:
+            phi_list = _build_feature_vector(my_history, opp_history, m)
+            phi = np.array(phi_list)
+            a_idx = MOVES.index(m)
+            try:
+                A_inv = np.linalg.inv(self._A[a_idx])
+                mu = A_inv @ self._b[a_idx]
+                # Sample from posterior
+                w_sample = np.random.multivariate_normal(mu, A_inv)
+            except np.linalg.LinAlgError:
+                mu = np.zeros(16)
+                w_sample = mu
+            q = float(w_sample @ phi)
+            if q > best_q:
+                best_q, best_action, best_phi = q, m, phi_list
+
+        self._last_action = best_action
+        self._last_phi = best_phi
+        return best_action
+
+
+# ---------------------------------------------------------------------------
+# 65: UCB Explorer v5 (LinUCB — contextual bandits)
+# ---------------------------------------------------------------------------
+
+class UCBExplorerV5(Algorithm):
+    """LinUCB v5 — contextual bandit with linear payoff model.
+
+    For each action: UCB = wᵀφ + α√(φᵀA⁻¹φ).
+    A is the feature covariance matrix, updated online.
+    """
+    name = "UCB Explorer v5"
+
+    def reset(self):
+        import numpy as np
+        self._np = np
+        d = 16
+        self._alpha_ucb = 1.5  # exploration coefficient
+        self._A = [np.eye(d) for _ in range(3)]
+        self._b = [np.zeros(d) for _ in range(3)]
+        self._last_action = None
+        self._last_phi = None
+        _pretrain_against_archetypes(self)
+
+    def choose(self, round_num, my_history, opp_history):
+        np = self._np
+
+        # Update from last round
+        if self._last_action is not None and len(my_history) >= 1:
+            my_last = my_history[-1]
+            opp_last = opp_history[-1]
+            if BEATS[my_last] == opp_last:
+                reward = 1.0
+            elif my_last == opp_last:
+                reward = 0.5
+            else:
+                reward = 0.0
+
+            a_idx = MOVES.index(self._last_action)
+            phi = np.array(self._last_phi)
+            self._A[a_idx] += np.outer(phi, phi)
+            self._b[a_idx] += reward * phi
+
+        # LinUCB action selection
+        best_ucb, best_action = -1e9, MOVES[0]
+        best_phi = None
+        for m in MOVES:
+            phi_list = _build_feature_vector(my_history, opp_history, m)
+            phi = np.array(phi_list)
+            a_idx = MOVES.index(m)
+            try:
+                A_inv = np.linalg.inv(self._A[a_idx])
+            except np.linalg.LinAlgError:
+                A_inv = np.eye(16)
+            theta = A_inv @ self._b[a_idx]
+            exploit = float(theta @ phi)
+            explore = self._alpha_ucb * float(np.sqrt(phi @ A_inv @ phi))
+            ucb = exploit + explore
+            if ucb > best_ucb:
+                best_ucb, best_action, best_phi = ucb, m, phi_list
+
+        self._last_action = best_action
+        self._last_phi = best_phi
+        return best_action
+
+
+# ---------------------------------------------------------------------------
+# 66: Gradient Learner v5 (Linear Softmax REINFORCE)
+# ---------------------------------------------------------------------------
+
+class GradientLearnerV5(Algorithm):
+    """Policy gradient v5 with linear softmax on features.
+
+    Preferences h(a) = wₐᵀ·φ(s) per action. Policy π(a|s) = softmax(h).
+    REINFORCE gradient update on linear weights.
+    """
+    name = "Gradient Learner v5"
+
+    def reset(self):
+        self._w = [[0.0] * 16 for _ in range(3)]  # weights per action
+        self._alpha = 0.02
+        self._avg_reward = 0.0
+        self._reward_count = 0
+        self._last_action = None
+        self._last_phi = None
+        self._last_probs = None
+        _pretrain_against_archetypes(self)
+
+    def _softmax_probs(self, my_history, opp_history):
+        import math
+        hs = []
+        phis = []
+        for m in MOVES:
+            phi = _build_feature_vector(my_history, opp_history, m)
+            phis.append(phi)
+            hs.append(_dot(self._w[MOVES.index(m)], phi))
+        max_h = max(hs)
+        exp_h = [math.exp(h - max_h) for h in hs]
+        total = sum(exp_h)
+        probs = [e / total for e in exp_h]
+        return probs, phis
+
+    def choose(self, round_num, my_history, opp_history):
+        # Update from last round
+        if self._last_action is not None and len(my_history) >= 1:
+            my_last = my_history[-1]
+            opp_last = opp_history[-1]
+            if BEATS[my_last] == opp_last:
+                reward = 1.0
+            elif my_last == opp_last:
+                reward = 0.0
+            else:
+                reward = -1.0
+
+            self._reward_count += 1
+            self._avg_reward += (reward - self._avg_reward) / self._reward_count
+            advantage = reward - self._avg_reward
+
+            a_idx = MOVES.index(self._last_action)
+            for i, m in enumerate(MOVES):
+                for j in range(16):
+                    if i == a_idx:
+                        self._w[i][j] += (
+                            self._alpha * advantage
+                            * (1 - self._last_probs[i]) * self._last_phi[j]
+                        )
+                    else:
+                        self._w[i][j] -= (
+                            self._alpha * advantage
+                            * self._last_probs[i] * self._last_phi[j]
+                        )
+
+        probs, phis = self._softmax_probs(my_history, opp_history)
+        self._last_probs = probs
+
+        # Sample from policy
+        r = self.rng.random()
+        cumulative = 0.0
+        chosen_idx = len(MOVES) - 1
+        for i, p in enumerate(probs):
+            cumulative += p
+            if r <= cumulative:
+                chosen_idx = i
+                break
+
+        action = MOVES[chosen_idx]
+        self._last_action = action
+        self._last_phi = phis[chosen_idx]
+        return action
+
+
+# ===========================================================================
 #  ADVANCED COMPETITIVE ALGORITHMS (38-41)
 # ===========================================================================
 
@@ -2866,6 +3233,551 @@ class EigenvaluePredictor(Algorithm):
         return _counter_move(predicted)
 
 
+
+# ===========================================================================
+#  NEW-FIELD ALGORITHMS (67-71)
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# 67: Hidden Markov Oracle (Hidden Markov Models / NLP)
+# ---------------------------------------------------------------------------
+
+class HiddenMarkovOracle(Algorithm):
+    """HMM-based predictor that discovers opponent's hidden 'moods'.
+
+    Assumes the opponent has 3 hidden states with different move
+    distributions. Uses the forward algorithm for state inference
+    and online Baum-Welch for parameter updates every 20 rounds.
+    Predicts by marginalizing over hidden states.
+    """
+    name = "Hidden Markov Oracle"
+
+    def reset(self):
+        n_states = 3
+        n_obs = 3  # R, P, S
+        self._n_states = n_states
+        # Transition matrix A[i][j] = P(s_j | s_i)
+        self._A = [[1.0 / n_states] * n_states for _ in range(n_states)]
+        # Emission matrix B[i][o] = P(obs_o | state_i)
+        # Initialize with slight bias to make states distinguishable
+        self._B = [
+            [0.5, 0.25, 0.25],  # state 0: biased Rock
+            [0.25, 0.5, 0.25],  # state 1: biased Paper
+            [0.25, 0.25, 0.5],  # state 2: biased Scissors
+        ]
+        # Initial state distribution
+        self._pi = [1.0 / n_states] * n_states
+        # Forward variable: α[i] = P(o_1..o_t, s_t=i)
+        self._alpha = list(self._pi)
+        self._obs_window: list[int] = []  # recent observations as indices
+        self._update_interval = 20
+
+    def _forward_step(self, obs_idx):
+        """Update forward variable with new observation."""
+        n = self._n_states
+        new_alpha = [0.0] * n
+        for j in range(n):
+            s = sum(self._alpha[i] * self._A[i][j] for i in range(n))
+            new_alpha[j] = s * self._B[j][obs_idx]
+        # Normalize to prevent underflow
+        total = sum(new_alpha)
+        if total > 0:
+            new_alpha = [a / total for a in new_alpha]
+        else:
+            new_alpha = [1.0 / n] * n
+        self._alpha = new_alpha
+
+    def _update_parameters(self):
+        """Simplified online Baum-Welch on recent observation window."""
+        if len(self._obs_window) < 10:
+            return
+        obs = self._obs_window[-self._update_interval:]
+        n = self._n_states
+        T = len(obs)
+
+        # Forward pass
+        alphas = [[0.0] * n for _ in range(T)]
+        alphas[0] = [self._pi[i] * self._B[i][obs[0]] for i in range(n)]
+        total = sum(alphas[0])
+        if total > 0:
+            alphas[0] = [a / total for a in alphas[0]]
+
+        for t in range(1, T):
+            for j in range(n):
+                s = sum(alphas[t-1][i] * self._A[i][j] for i in range(n))
+                alphas[t][j] = s * self._B[j][obs[t]]
+            total = sum(alphas[t])
+            if total > 0:
+                alphas[t] = [a / total for a in alphas[t]]
+
+        # Backward pass
+        betas = [[0.0] * n for _ in range(T)]
+        betas[T-1] = [1.0] * n
+
+        for t in range(T-2, -1, -1):
+            for i in range(n):
+                betas[t][i] = sum(
+                    self._A[i][j] * self._B[j][obs[t+1]] * betas[t+1][j]
+                    for j in range(n)
+                )
+            total = sum(betas[t])
+            if total > 0:
+                betas[t] = [b / total for b in betas[t]]
+
+        # Update emission probs B
+        for i in range(n):
+            for o in range(3):
+                num = sum(alphas[t][i] * betas[t][i]
+                          for t in range(T) if obs[t] == o)
+                den = sum(alphas[t][i] * betas[t][i] for t in range(T))
+                if den > 1e-10:
+                    self._B[i][o] = max(0.01, 0.7 * self._B[i][o] + 0.3 * (num / den))
+            # Normalize
+            row_sum = sum(self._B[i])
+            self._B[i] = [b / row_sum for b in self._B[i]]
+
+        # Update transition probs A
+        for i in range(n):
+            for j in range(n):
+                num = sum(
+                    alphas[t][i] * self._A[i][j] * self._B[j][obs[t+1]] * betas[t+1][j]
+                    for t in range(T-1)
+                )
+                den = sum(alphas[t][i] * betas[t][i] for t in range(T-1))
+                if den > 1e-10:
+                    self._A[i][j] = max(0.01, 0.7 * self._A[i][j] + 0.3 * (num / den))
+            row_sum = sum(self._A[i])
+            self._A[i] = [a / row_sum for a in self._A[i]]
+
+    def choose(self, round_num, my_history, opp_history):
+        if not opp_history:
+            return self.rng.choice(MOVES)
+
+        obs_idx = MOVES.index(opp_history[-1])
+        self._obs_window.append(obs_idx)
+        self._forward_step(obs_idx)
+
+        # Periodic parameter update
+        if len(self._obs_window) % self._update_interval == 0:
+            self._update_parameters()
+
+        # Predict next observation by marginalizing over hidden states
+        n = self._n_states
+        pred = [0.0, 0.0, 0.0]
+        for o in range(3):
+            for j in range(n):
+                s = sum(self._alpha[i] * self._A[i][j] for i in range(n))
+                pred[o] += s * self._B[j][o]
+
+        # Counter the most likely predicted move
+        predicted_move = MOVES[pred.index(max(pred))]
+        return _counter_move(predicted_move)
+
+
+# ---------------------------------------------------------------------------
+# 68: Genetic Strategist (Evolutionary Computation)
+# ---------------------------------------------------------------------------
+
+class GeneticStrategist(Algorithm):
+    """Evolves a population of response tables via natural selection.
+
+    Each genome maps (opp[-1], opp[-2]) → Move (9 entries).
+    Fitness is tested against opponent's recent 50 moves.
+    Every 25 rounds: selection, crossover, mutation.
+    """
+    name = "Genetic Strategist"
+
+    def reset(self):
+        self._pop_size = 20
+        self._population = []
+        for _ in range(self._pop_size):
+            genome = {}
+            for m1 in MOVES:
+                for m2 in MOVES:
+                    genome[(m1, m2)] = self.rng.choice(MOVES)
+            self._population.append(genome)
+        self._fitness = [0.0] * self._pop_size
+        self._best_genome = self._population[0]
+        self._evolve_interval = 25
+
+    def _evaluate_fitness(self, genome, opp_history):
+        """Score a genome against recent opponent history."""
+        if len(opp_history) < 3:
+            return 0.0
+        window = opp_history[-50:] if len(opp_history) > 50 else opp_history
+        score = 0
+        for k in range(2, len(window)):
+            key = (window[k-1], window[k-2])
+            our_move = genome.get(key, self.rng.choice(MOVES))
+            opp_move = window[k]
+            if BEATS[our_move] == opp_move:
+                score += 1
+            elif our_move != opp_move:
+                score -= 1
+        return score
+
+    def _evolve(self, opp_history):
+        """Run one generation: evaluate, select, crossover, mutate."""
+        # Evaluate fitness
+        for i, genome in enumerate(self._population):
+            self._fitness[i] = self._evaluate_fitness(genome, opp_history)
+
+        # Sort by fitness (descending)
+        ranked = sorted(range(self._pop_size), key=lambda i: self._fitness[i], reverse=True)
+
+        # Selection: keep top half
+        survivors = [self._population[i] for i in ranked[:self._pop_size // 2]]
+
+        # Crossover: pair survivors to produce children
+        children = []
+        for c in range(self._pop_size // 2):
+            p1 = survivors[c % len(survivors)]
+            p2 = survivors[(c + 1) % len(survivors)]
+            child = {}
+            for key in p1:
+                child[key] = p1[key] if self.rng.random() < 0.5 else p2[key]
+            children.append(child)
+
+        # Mutation
+        for child in children:
+            for key in child:
+                if self.rng.random() < 0.05:
+                    child[key] = self.rng.choice(MOVES)
+
+        self._population = survivors + children
+        self._best_genome = self._population[0]  # fittest after sort
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 2:
+            return self.rng.choice(MOVES)
+
+        # Periodic evolution
+        if round_num > 0 and round_num % self._evolve_interval == 0:
+            self._evolve(opp_history)
+
+        # Use the best genome's response
+        key = (opp_history[-1], opp_history[-2])
+        return self._best_genome.get(key, self.rng.choice(MOVES))
+
+
+# ---------------------------------------------------------------------------
+# 69: PID Controller (Control Theory / Robotics)
+# ---------------------------------------------------------------------------
+
+class PIDController(Algorithm):
+    """Feedback control strategy using PID (Proportional-Integral-Derivative).
+
+    Error signal per move = expected win rate - actual win rate.
+    PID regulates move selection probabilities via softmax.
+    Kp=0.5, Ki=0.05, Kd=0.2, anti-windup on integral ±10.
+    """
+    name = "PID Controller"
+
+    def reset(self):
+        self._kp = 0.5
+        self._ki = 0.05
+        self._kd = 0.2
+        # Per-move tracking
+        self._wins = {m: 0 for m in MOVES}
+        self._plays = {m: 0 for m in MOVES}
+        self._error_prev = {m: 0.0 for m in MOVES}
+        self._integral = {m: 0.0 for m in MOVES}
+        self._total_rounds = 0
+
+    def choose(self, round_num, my_history, opp_history):
+        import math
+
+        # Update from last round
+        if my_history and opp_history:
+            my_last = my_history[-1]
+            opp_last = opp_history[-1]
+            self._plays[my_last] += 1
+            if BEATS[my_last] == opp_last:
+                self._wins[my_last] += 1
+            self._total_rounds += 1
+
+        if self._total_rounds < 3:
+            return self.rng.choice(MOVES)
+
+        # Compute PID control signal for each move
+        control = {}
+        for m in MOVES:
+            # Expected win rate vs actual
+            expected = 1.0 / 3.0  # baseline expectation
+            actual = self._wins[m] / max(self._plays[m], 1)
+            error = expected - actual  # positive = underperforming
+
+            # The move that BEATS m: we want to play what beats the
+            # opponent's likely next move, so we track error differently
+            # Error = how good is playing counter to opponent's bias
+            opp_freq = sum(1 for o in opp_history[-30:] if o == m) / max(len(opp_history[-30:]), 1)
+            counter = _counter_move(m)
+            error = opp_freq - 1.0/3.0  # positive if opponent plays m more than expected
+
+            # PID terms
+            p_term = self._kp * error
+            self._integral[m] += error
+            self._integral[m] = max(-10, min(10, self._integral[m]))  # anti-windup
+            i_term = self._ki * self._integral[m]
+            d_term = self._kd * (error - self._error_prev[m])
+            self._error_prev[m] = error
+
+            # Control signal for the COUNTER move
+            control[counter] = control.get(counter, 0) + (p_term + i_term + d_term)
+
+        # Softmax over control signals
+        max_u = max(control.values())
+        exp_u = {m: math.exp(min(control.get(m, 0) - max_u, 10)) for m in MOVES}
+        total = sum(exp_u.values())
+        probs = {m: exp_u[m] / total for m in MOVES}
+
+        # Sample
+        r = self.rng.random()
+        cumulative = 0.0
+        for m in MOVES:
+            cumulative += probs[m]
+            if r <= cumulative:
+                return m
+        return MOVES[-1]
+
+
+# ---------------------------------------------------------------------------
+# 70: Chaos Engine (Nonlinear Dynamics / Physics)
+# ---------------------------------------------------------------------------
+
+class ChaosEngine(Algorithm):
+    """Deterministic but unpredictable via the logistic map.
+
+    Uses x_{n+1} = 3.99 · xₙ · (1-xₙ) for chaotic move generation.
+    70% chaotic moves, 30% frequency exploitation.
+    Re-seeds from outcome hash every 50 rounds.
+    """
+    name = "Chaos Engine"
+
+    def reset(self):
+        self._r = 3.99  # fully chaotic regime
+        self._x = 0.4 + self.rng.random() * 0.2  # x₀ ∈ (0.4, 0.6)
+        self._chaos_ratio = 0.7
+        self._reseed_interval = 50
+
+    def _step(self):
+        """Advance the logistic map by one step."""
+        self._x = self._r * self._x * (1.0 - self._x)
+        return self._x
+
+    def _reseed(self, opp_history, my_history):
+        """Reseed x₀ from recent outcome hash."""
+        if len(opp_history) < 10:
+            return
+        # Hash from last 10 moves
+        h = 0
+        for i in range(max(0, len(opp_history)-10), len(opp_history)):
+            h = (h * 31 + MOVES.index(opp_history[i])) & 0xFFFFFFFF
+        if len(my_history) >= 10:
+            for i in range(max(0, len(my_history)-10), len(my_history)):
+                h = (h * 37 + MOVES.index(my_history[i])) & 0xFFFFFFFF
+        # Map to (0.1, 0.9) to avoid fixed points
+        self._x = 0.1 + (h % 10000) / 10000.0 * 0.8
+
+    def choose(self, round_num, my_history, opp_history):
+        # Periodic reseed
+        if round_num > 0 and round_num % self._reseed_interval == 0:
+            self._reseed(opp_history, my_history)
+
+        x = self._step()
+
+        if self.rng.random() < self._chaos_ratio:
+            # Chaotic move
+            return MOVES[int(x * 3) % 3]
+        else:
+            # Exploit opponent frequency bias
+            if not opp_history:
+                return self.rng.choice(MOVES)
+            counts = Counter(opp_history[-30:])
+            predicted = counts.most_common(1)[0][0]
+            return _counter_move(predicted)
+
+
+# ---------------------------------------------------------------------------
+# 71: Level-k Reasoner (Behavioral Economics / Cognitive Science)
+# ---------------------------------------------------------------------------
+
+class LevelKReasoner(Algorithm):
+    """Cognitive hierarchy model — detects opponent's reasoning level.
+
+    Level 0: uniform random
+    Level 1: frequency counter (best respond to level 0)
+    Level 2: counter frequency counter
+    Level 3: counter-counter-counter
+    Level 4: counter-counter-counter-counter
+
+    Detects opponent's level by simulating each, then plays one
+    level above. Falls back to Regret Matching when unclear.
+    """
+    name = "Level-k Reasoner"
+
+    def reset(self):
+        self._regret = {m: 0.0 for m in MOVES}
+        self._detection_window = 50
+        self._detected_level = 1  # assume level 1 by default
+
+    def _simulate_level0(self, opp_history, round_idx):
+        """Level 0: uniform random — each move equally likely."""
+        return None  # can't simulate a specific move, just uniform
+
+    def _simulate_level1_move(self, opp_history, idx):
+        """What a Level-1 player (frequency counter) would play at round idx."""
+        if idx == 0:
+            return MOVES[0]
+        history_before = opp_history[:idx]
+        counts = Counter(history_before)
+        if not counts:
+            return MOVES[0]
+        predicted = counts.most_common(1)[0][0]
+        return _counter_move(predicted)
+
+    def _simulate_level2_move(self, opp_history, my_simulated_l1, idx):
+        """Level 2: counter what Level-1 would play."""
+        l1_move = self._simulate_level1_move(opp_history, idx)
+        return _counter_move(l1_move)
+
+    def _detect_opponent_level(self, opp_history, my_history):
+        """Score each level against opponent's actual moves."""
+        if len(opp_history) < 20:
+            return 1
+
+        window = min(self._detection_window, len(opp_history))
+        start = len(opp_history) - window
+
+        scores = [0] * 5  # level 0 through 4
+
+        for t in range(start, len(opp_history)):
+            actual = opp_history[t]
+
+            # Level 0: uniform random — score 1 for any match (baseline ~1/3)
+            scores[0] += 1  # constant baseline
+
+            # Level 1: frequency counter
+            if t > 0:
+                # "opp_history" from the opponent's perspective is actually
+                # my_history (what the opponent sees as their opponent)
+                l1_counts = Counter(my_history[:t])
+                if l1_counts:
+                    l1_pred = l1_counts.most_common(1)[0][0]
+                    l1_move = _counter_move(l1_pred)
+                    if actual == l1_move:
+                        scores[1] += 3
+
+            # Level 2: counter level 1
+            if t > 1:
+                l1_counts = Counter(my_history[:t])
+                if l1_counts:
+                    l1_pred = l1_counts.most_common(1)[0][0]
+                    l1_move = _counter_move(l1_pred)
+                    l2_move = _counter_move(l1_move)
+                    if actual == l2_move:
+                        scores[2] += 3
+
+            # Level 3: counter level 2
+            if t > 2:
+                l1_counts = Counter(my_history[:t])
+                if l1_counts:
+                    l1_pred = l1_counts.most_common(1)[0][0]
+                    l1_move = _counter_move(l1_pred)
+                    l2_move = _counter_move(l1_move)
+                    l3_move = _counter_move(l2_move)
+                    if actual == l3_move:
+                        scores[3] += 3
+
+            # Level 4: counter level 3
+            if t > 3:
+                l1_counts = Counter(my_history[:t])
+                if l1_counts:
+                    l1_pred = l1_counts.most_common(1)[0][0]
+                    l1_move = _counter_move(l1_pred)
+                    l2_move = _counter_move(l1_move)
+                    l3_move = _counter_move(l2_move)
+                    l4_move = _counter_move(l3_move)
+                    if actual == l4_move:
+                        scores[4] += 3
+
+        return scores.index(max(scores))
+
+    def _regret_matching_move(self):
+        """Regret Matching fallback when level is unclear."""
+        positive_regret = {m: max(0, r) for m, r in self._regret.items()}
+        total = sum(positive_regret.values())
+        if total == 0:
+            return self.rng.choice(MOVES)
+        r = self.rng.random() * total
+        cumulative = 0.0
+        for m in MOVES:
+            cumulative += positive_regret[m]
+            if r <= cumulative:
+                return m
+        return MOVES[-1]
+
+    def choose(self, round_num, my_history, opp_history):
+        # Update regret from last round
+        if my_history and opp_history:
+            opp_last = opp_history[-1]
+            my_last = my_history[-1]
+            for m in MOVES:
+                if BEATS[m] == opp_last:
+                    self._regret[m] += 1.0
+                elif m == opp_last:
+                    self._regret[m] += 0.0
+                else:
+                    self._regret[m] -= 0.5
+                # Reduce regret for what we actually played
+                if m == my_last:
+                    if BEATS[m] == opp_last:
+                        pass  # we won, no regret
+                    elif m != opp_last:
+                        self._regret[m] -= 1.0
+
+        if len(opp_history) < 20:
+            return self.rng.choice(MOVES)
+
+        # Detect opponent's level every 25 rounds
+        if round_num % 25 == 0:
+            self._detected_level = self._detect_opponent_level(opp_history, my_history)
+
+        level = self._detected_level
+
+        # Play one level above the detected level
+        if level == 0:
+            # Opponent is random → frequency counter (level 1)
+            counts = Counter(opp_history[-30:])
+            predicted = counts.most_common(1)[0][0]
+            return _counter_move(predicted)
+        elif level == 1:
+            # Opponent is level 1 → counter their frequency-counter move
+            # They predict our most common, counter it
+            my_counts = Counter(my_history[-30:])
+            my_common = my_counts.most_common(1)[0][0]
+            their_move = _counter_move(my_common)
+            return _counter_move(their_move)
+        elif level == 2:
+            # Level 3: counter level 2
+            my_counts = Counter(my_history[-30:])
+            my_common = my_counts.most_common(1)[0][0]
+            l1 = _counter_move(my_common)
+            l2 = _counter_move(l1)
+            return _counter_move(l2)
+        elif level == 3:
+            my_counts = Counter(my_history[-30:])
+            my_common = my_counts.most_common(1)[0][0]
+            l1 = _counter_move(my_common)
+            l2 = _counter_move(l1)
+            l3 = _counter_move(l2)
+            return _counter_move(l3)
+        else:
+            # High level or unclear → regret matching
+            return self._regret_matching_move()
+
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -2901,6 +3813,10 @@ ALL_ALGORITHM_CLASSES = [
     DeepHistorian, AdaptiveNGram,
     # Deep Math / Proven Theory (60-62)
     RegretMinimizer, FourierPredictor, EigenvaluePredictor,
+    # RL v5: Linear Function Approximation (63-66)
+    QLearnerV5, ThompsonSamplerV5, UCBExplorerV5, GradientLearnerV5,
+    # New-Field Algorithms (67-71)
+    HiddenMarkovOracle, GeneticStrategist, PIDController, ChaosEngine, LevelKReasoner,
 ]
 
 
@@ -2917,9 +3833,3 @@ def get_algorithm_by_name(name: str) -> Algorithm:
             return cls()
     available = ", ".join(cls.name for cls in ALL_ALGORITHM_CLASSES)
     raise ValueError(f"Unknown algorithm: '{name}'. Available: {available}")
-
-
-
-
-
-
