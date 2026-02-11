@@ -870,6 +870,39 @@ class IocainePowder(Algorithm):
 
 
 # ---------------------------------------------------------------------------
+# 33: Intentional Loser (deliberately tries to lose)
+# ---------------------------------------------------------------------------
+
+def _losing_move(move: Move) -> Move:
+    """Return the move that LOSES to `move`."""
+    return BEATS[move]
+
+
+class IntentionalLoser(Algorithm):
+    """Deliberately tries to LOSE every round.
+
+    Predicts the opponent's next move using frequency analysis,
+    then plays the move that LOSES to the prediction.
+
+    Why include it? It's a useful baseline to test that your algorithm
+    can at least beat something that actively tries to lose. It's also
+    a fun sanity check — any algorithm that loses to the Intentional
+    Loser has a serious bug.
+    """
+    name = "Intentional Loser"
+
+    def choose(self, round_num, my_history, opp_history):
+        if not opp_history:
+            # Round 0: lose to the most common opening (Rock)
+            return Move.SCISSORS
+        # Predict opponent's most likely move
+        counts = Counter(opp_history)
+        predicted = counts.most_common(1)[0][0]
+        # Play the move that LOSES to it
+        return _losing_move(predicted)
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
@@ -887,6 +920,8 @@ ALL_ALGORITHM_CLASSES = [
     Echo, TrojanHorse, ReluctantGambler,
     EntropyGuardian, SecondGuess, MajorityRule,
     PhaseShifter, DeBruijnWalker, IocainePowder,
+    # Special (33)
+    IntentionalLoser,
 ]
 
 
@@ -903,4 +938,5 @@ def get_algorithm_by_name(name: str) -> Algorithm:
             return cls()
     available = ", ".join(cls.name for cls in ALL_ALGORITHM_CLASSES)
     raise ValueError(f"Unknown algorithm: '{name}'. Available: {available}")
+
 
