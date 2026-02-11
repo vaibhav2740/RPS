@@ -1,6 +1,6 @@
 # 🎮 RPS Playground — Algorithm Battle Arena
 
-A modular Rock-Paper-Scissors algorithm testing playground with **20 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
+A modular Rock-Paper-Scissors algorithm testing playground with **32 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
 
 ---
 
@@ -67,7 +67,7 @@ Run a single match between any two algorithms.
 
 ### 🏆 Tournament
 
-Full round-robin — every algorithm plays every other algorithm (190 matches total).
+Full round-robin — every algorithm plays every other algorithm (496 matches total with 32 bots).
 
 1. **Set rounds per match** and optional **seed**
 2. Click **🏆 RUN**
@@ -76,7 +76,7 @@ Full round-robin — every algorithm plays every other algorithm (190 matches to
 
 ### 🤖 One vs All
 
-Test a single algorithm against the entire pool of 20 bots.
+Test a single algorithm against the entire pool of 32 bots.
 
 1. **Select your algorithm** from the dropdown
 2. **Set rounds** and optional **seed**
@@ -88,7 +88,7 @@ Test a single algorithm against the entire pool of 20 bots.
 
 ## 🤖 Algorithm Reference
 
-All 20 algorithms explained:
+All 32 algorithms explained:
 
 ### Static Strategies
 
@@ -139,6 +139,38 @@ All 20 algorithms explained:
 |---|-----------|----------|
 | 18 | **Punisher** | Plays randomly by default. When it **detects the opponent repeating a move 3+ times**, enters "punish mode" for 10 rounds — aggressively countering their most common recent move. |
 | 19 | **Forgiver** | Like Punisher, but **forgives after only 3 rounds** instead of 10. More lenient — returns to random play quickly, giving the opponent a chance to change. |
+
+### 🧠 Creative: Intelligence & Prediction
+
+| # | Algorithm | Strategy |
+|---|-----------|----------|
+| 21 | **Decay Analyzer** | Like Frequency Analyzer, but uses **exponential decay weighting** (factor 0.9) so recent moves matter far more than old ones. Adapts within 10-20 rounds instead of hundreds. |
+| 22 | **Historian** | Finds the **longest matching subsequence** from earlier in the game history and predicts what the opponent played next after that same context. Inspired by **LZ compression** — longer context = better prediction. |
+| 32 | **Iocaine Powder** | Legendary RPS bot. Runs **6 meta-strategies** simultaneously (naive, counter, counter-counter, and their opponent-perspective mirrors). Scores each by accuracy and follows the best. Named after *The Princess Bride*: "I know that you know that I know..." |
+
+### 🎭 Creative: Psychology & Mind Games
+
+| # | Algorithm | Strategy |
+|---|-----------|----------|
+| 23 | **Reverse Psychologist** | **2nd-order thinking**: "I played X → opponent expects X again → they'll play counter(X) → I play counter(counter(X))". Beats naive counter-last strategies but loses to simple repeaters. |
+| 28 | **Second Guess** | Like Reverse Psychologist, but **monitors whether the opponent actually IS countering** before committing to 2nd-order logic. Falls back to frequency analysis if opponent isn't counter-playing. |
+| 24 | **Echo** | Copies the opponent's move from **3 rounds ago** instead of last round. Creates temporal confusion for strategies that only track immediate history. |
+
+### 🎪 Creative: Deception & Manipulation
+
+| # | Algorithm | Strategy |
+|---|-----------|----------|
+| 25 | **Trojan Horse** | Plays **Always Rock for 30 rounds** as bait, tricking adaptive opponents into locking onto Paper. Then **abruptly switches** to countering their recent adaptation. The classic bait-and-switch. |
+| 30 | **Phase Shifter** | Alternates between **40 rounds of aggressive exploitation** and **20 rounds of pure randomness**. The random bursts reset the opponent's model of it, preventing counter-adaptation. |
+| 31 | **De Bruijn Walker** | Follows a **De Bruijn sequence** that covers all 9 possible 2-grams (RR, RP, RS, PR, PP, PS, SR, SP, SS). Pattern detectors can't find repeating subsequences. Occasionally (10%) deviates to exploit strong biases. |
+
+### 🧮 Creative: Statistical & Ensemble
+
+| # | Algorithm | Strategy |
+|---|-----------|----------|
+| 26 | **Reluctant Gambler** | Plays **pure random until statistically confident** (chi-squared test, p<0.05) that opponent has a bias. Then exploits hard. Re-checks every 100 rounds. Never commits without evidence. |
+| 27 | **Entropy Guardian** | Monitors its **own move entropy**. If it detects itself becoming predictable (entropy drops below 70% of max), forces random play. Otherwise exploits normally. Balances attack and stealth. |
+| 29 | **Majority Rule** | Runs **5 independent strategies** each round (counter-last, mirror, frequency, anti-cycle, random) and uses **majority vote** to pick the final move. Wisdom of crowds — robust against many opponent types. |
 
 ---
 
@@ -194,7 +226,7 @@ ALL_ALGORITHM_CLASSES = [
 rps_playground/
 ├── __init__.py          # Package init
 ├── engine.py            # Core: Move enum, winner logic, MatchResult, run_match
-├── algorithms.py        # 20 algorithms + base class + registry
+├── algorithms.py        # 32 algorithms + base class + registry
 ├── tournament.py        # 3 modes: head-to-head, one-vs-all, round-robin
 ├── stats.py             # Elo system, leaderboard, H2H matrix, pretty-print
 ├── export.py            # JSON and CSV export
@@ -213,7 +245,7 @@ python3 -m rps_playground.main <command> [options]
 
 Commands:
   head-to-head   Mode 1: Algo A vs Algo B
-  one-vs-all     Mode 2: Custom algo vs all 20 bots
+  one-vs-all     Mode 2: Custom algo vs all 32 bots
   tournament     Mode 3: Full round-robin tournament
 
 Global:
