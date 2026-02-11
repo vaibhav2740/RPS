@@ -74,7 +74,8 @@ def api_tournament():
     rounds = data.get("rounds", 1000)
     seed = data.get("seed", None)
 
-    results = round_robin(rounds=rounds, seed=seed)
+    algos = get_all_algorithms()
+    results = round_robin(algos, rounds=rounds, seed=seed, parallel=True)
     leaderboard = compute_leaderboard(results)
     matrix = head_to_head_matrix(results)
 

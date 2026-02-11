@@ -98,10 +98,15 @@ def run_match(
     algo_b,
     rounds: int = 1000,
     seed: Optional[int] = None,
+    record_moves: bool = True,
 ) -> MatchResult:
     """Run a match of N rounds between two algorithm instances.
 
     Each algorithm gets its own seeded RNG derived from the master seed.
+
+    Args:
+        record_moves: If False, skip storing per-round moves in the result.
+                      Set to False for bulk tournament runs to save memory.
     """
     master_rng = random.Random(seed)
     algo_a_seed = master_rng.randint(0, 2**31)
@@ -122,8 +127,8 @@ def run_match(
     b_history: list[Move] = []
 
     for round_num in range(rounds):
-        move_a = algo_a.choose(round_num, a_history.copy(), b_history.copy())
-        move_b = algo_b.choose(round_num, b_history.copy(), a_history.copy())
+        move_a = algo_a.choose(round_num, tuple(a_history), tuple(b_history))
+        move_b = algo_b.choose(round_num, tuple(b_history), tuple(a_history))
 
         outcome = determine_winner(move_a, move_b)
         if outcome == 1:
@@ -135,7 +140,8 @@ def run_match(
 
         a_history.append(move_a)
         b_history.append(move_b)
-        result.a_moves.append(move_a)
-        result.b_moves.append(move_b)
+        if record_moves:
+            result.a_moves.append(move_a)
+            result.b_moves.append(move_b)
 
     return result

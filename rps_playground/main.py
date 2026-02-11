@@ -48,7 +48,7 @@ def cmd_one_vs_all(args):
           + (f"  |  seed={args.seed}" if args.seed is not None else ""))
     print()
 
-    results = one_vs_all(custom, pool, rounds=args.rounds, seed=args.seed)
+    results = one_vs_all(custom, pool, rounds=args.rounds, seed=args.seed, parallel=True)
 
     # Print individual match summaries
     for r in results:
@@ -72,7 +72,7 @@ def cmd_tournament(args):
           + (f"  |  seed={args.seed}" if args.seed is not None else ""))
     print(f"  Running...", end="", flush=True)
 
-    results = round_robin(algos, rounds=args.rounds, seed=args.seed)
+    results = round_robin(algos, rounds=args.rounds, seed=args.seed, parallel=True)
     print(f" done! ({len(results)} matches played)")
 
     leaderboard = compute_leaderboard(results)
