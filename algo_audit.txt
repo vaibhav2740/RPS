@@ -1,0 +1,769 @@
+--- 1. Always Rock (AlwaysRock) ---
+Base class for RPS algorithms.
+
+--- 2. Always Paper (AlwaysPaper) ---
+Base class for RPS algorithms.
+
+--- 3. Always Scissors (AlwaysScissors) ---
+Base class for RPS algorithms.
+
+--- 4. Pure Random (PureRandom) ---
+Base class for RPS algorithms.
+
+--- 5. Cycle (Cycle) ---
+Base class for RPS algorithms.
+
+--- 6. Mirror Opponent (MirrorOpponent) ---
+Base class for RPS algorithms.
+
+--- 7. Tit-for-Tat (TitForTat) ---
+Base class for RPS algorithms.
+
+--- 8. Anti-Tit-for-Tat (AntiTitForTat) ---
+Base class for RPS algorithms.
+
+--- 9. Frequency Analyzer (FrequencyAnalyzer) ---
+Base class for RPS algorithms.
+
+--- 10. Markov Predictor (MarkovPredictor) ---
+Base class for RPS algorithms.
+
+--- 11. Pattern Detector (PatternDetector) ---
+Base class for RPS algorithms.
+
+--- 12. Win-Stay-Lose-Shift (WinStayLoseShift) ---
+Base class for RPS algorithms.
+
+--- 13. Meta-Predictor (MetaPredictor) ---
+Base class for RPS algorithms.
+
+--- 14. Noise Strategy (NoiseStrategy) ---
+Base class for RPS algorithms.
+
+--- 15. Adaptive Hybrid (AdaptiveHybrid) ---
+Base class for RPS algorithms.
+
+--- 16. Last-Move Counter (LastMoveCounter) ---
+Base class for RPS algorithms.
+
+--- 17. Weighted Random (WeightedRandom) ---
+Base class for RPS algorithms.
+
+--- 18. Punisher (Punisher) ---
+Base class for RPS algorithms.
+
+--- 19. Forgiver (Forgiver) ---
+Base class for RPS algorithms.
+
+--- 20. Chaos Strategy (ChaosStrategy) ---
+Base class for RPS algorithms.
+
+--- 21. Decay Analyzer (DecayAnalyzer) ---
+Frequency analysis where recent moves matter exponentially more.
+
+Uses a decay factor (0.9) so the last 10-20 moves dominate the
+prediction, adapting much faster than vanilla FrequencyAnalyzer.
+
+--- 22. Historian (Historian) ---
+Finds the longest matching suffix in past history and predicts what
+the opponent played immediately after that same context.
+
+Inspired by Lempel-Ziv compression — the longer the matched context,
+the higher the predictive confidence looks.
+
+--- 23. Reverse Psychologist (ReversePsychologist) ---
+Assumes the opponent is trying to counter YOUR last move.
+
+Thinks: "I played X → opponent expects me to play X again →
+opponent will play counter(X) → I should play counter(counter(X))."
+
+This creates a 2-level reasoning chain that beats naive counter-last
+strategies but loses to simple repeaters.
+
+--- 24. Echo (Echo) ---
+Copies the opponent's move from 3 rounds ago instead of last round.
+
+Creates a temporal echo — useful when opponents have cyclic patterns
+with period > 1, and confusing for strategies that only look at the
+immediate last move.
+
+--- 25. Trojan Horse (TrojanHorse) ---
+Feeds a predictable pattern (always Rock) for the first 30 rounds
+to bait the opponent into adapting, then abruptly switches to
+exploiting their adaptation.
+
+Opponents that adapt to "always Rock" will start playing Paper —
+the Trojan then switches to Scissors and shreds them.
+
+--- 26. Reluctant Gambler (ReluctantGambler) ---
+Plays purely random until it has enough data to be statistically
+confident about the opponent's bias (chi-squared-like threshold).
+
+Once confident, switches to hard exploitation. Resets confidence
+check every 100 rounds in case opponent changed strategy.
+
+--- 27. Entropy Guardian (EntropyGuardian) ---
+Monitors its OWN move distribution entropy. If becoming too
+predictable (entropy drops below threshold), forces random play.
+Otherwise exploits the opponent.
+
+Ensures it never becomes easy to read while still adapting.
+
+--- 28. Second Guess (SecondGuess) ---
+Assumes the opponent uses a "counter my last move" strategy.
+
+Thinks: "I played X → opponent plays counter(X) → so I should play
+counter(counter(X)) which actually equals the move that LOSES to X."
+
+But wait — that's what Reverse Psychologist does too. The difference:
+Second Guess also monitors whether the opponent IS actually countering,
+and falls back to frequency analysis if they're not.
+
+--- 29. Majority Rule (MajorityRule) ---
+Runs 5 independent sub-strategies each round and uses majority vote.
+
+Sub-strategies: counter-last, mirror, frequency, anti-cycle, random.
+The wisdom of crowds — no single strategy dominates, but the ensemble
+is robust against many different opponent types.
+
+--- 30. Phase Shifter (PhaseShifter) ---
+Alternates between two modes in timed phases:
+
+- Aggressive (40 rounds): Full exploitation — counter opponent's
+most common recent move.
+- Defensive (20 rounds): Pure randomness to reset opponent's
+model of us.
+
+The asymmetric timing means it spends more time exploiting than
+hiding, but the defensive bursts prevent easy counter-adaptation.
+
+--- 31. De Bruijn Walker (DeBruijnWalker) ---
+Walks through moves following a De Bruijn-like sequence that covers
+all possible 2-grams (RR, RP, RS, PR, PP, PS, SR, SP, SS).
+
+This makes it extremely hard for pattern detectors to find repeating
+subsequences, since every possible pair appears exactly once per cycle.
+Occasionally (10%) deviates to exploit if a strong bias is detected.
+
+--- 32. Iocaine Powder (IocainePowder) ---
+Inspired by the legendary "Iocaine Powder" RPS bot.
+
+Runs 6 meta-strategies simultaneously:
+1. Naive: predict opponent plays same as last
+2. Naive counter: predict opponent counters our last
+3. Naive counter-counter: one level deeper
+4-6: Same three but applied to OPPONENT's perspective
+
+Each meta-strategy is scored by how well it would have predicted
+the actual last move. The best-performing one is used.
+
+Named after the battle of wits in The Princess Bride —
+"I know that you know that I know..."
+
+--- 33. Intentional Loser (IntentionalLoser) ---
+Deliberately tries to LOSE every round.
+
+Predicts the opponent's next move using frequency analysis,
+then plays the move that LOSES to the prediction.
+
+Why include it? It's a useful baseline to test that your algorithm
+can at least beat something that actively tries to lose. It's also
+a fun sanity check — any algorithm that loses to the Intentional
+Loser has a serious bug.
+
+--- 34. Q-Learner (QLearner) ---
+Tabular Q-Learning v4 with experience replay and outcome-aware state.
+
+State = (my[-1], opp[-1], opp[-2], last_outcome) → 81 states + warm-up.
+Experience replay: stores last 200 transitions, replays 10 random
+ones per round for multi-pass learning (DQN-inspired).
+Pre-trained via self-play against 5 archetypal opponents.
+
+Q-update: Q(s,a) ← Q(s,a) + α × (reward - Q(s,a))
+
+--- 35. Thompson Sampler (ThompsonSampler) ---
+Bayesian multi-armed bandit v4 using Beta-Bernoulli model.
+
+State includes last-round outcome for context-aware exploration.
+For each (state, action), maintains Beta(α, β) where α counts wins
+and β counts losses. Samples from posteriors; highest sample wins.
+
+--- 36. UCB Explorer (UCBExplorer) ---
+UCB1 bandit v4 with outcome-aware state.
+
+Picks the action maximizing: Q̄(s,a) + c × √(ln(N_s) / n_sa)
+where c = √2 for optimal exploration-exploitation trade-off.
+State includes last-round outcome for contextual decisions.
+
+--- 37. Gradient Learner (GradientLearner) ---
+Policy gradient v4 with softmax action selection.
+
+Maintains preference vector h(s,a). Policy π(a|s) = softmax(h).
+Updates preferences via gradient ascent on expected reward.
+Outcome-aware state + entropy regularization to prevent collapse.
+
+--- 38. Bayesian Predictor (BayesianPredictor) ---
+Maintains a Dirichlet prior over opponent's move distribution.
+
+Uses a sliding window of the last 50 moves for adaptivity.
+Posterior: Dir(α_R + n_R, α_P + n_P, α_S + n_S) with α_i = 1.
+Samples from posterior and counters the most probable move.
+
+--- 39. N-Gram Predictor (NGramPredictor) ---
+Builds n-gram model over JOINT (my_move, opp_move) history.
+
+Unlike Pattern Detector which only looks at opponent's moves,
+this uses both players' moves as context, capturing interactive
+patterns like "when I play Rock and they play Paper, they usually
+follow with Scissors."
+
+Searches n = 3, 2, 1 for the best matching context.
+
+--- 40. Anti-Strategy Detector (AntiStrategyDetector) ---
+Identifies which known strategy archetype the opponent is using,
+then plays the specific hard counter for that archetype.
+
+Detects: constant, cycle, mirror, counter, frequency-based.
+Scores each detector by accuracy on last 20 moves.
+
+--- 41. Mixture Model (MixtureModel) ---
+Multiplicative weights (Hedge) algorithm over 5 expert strategies.
+
+Achieves O(√(T log K)) regret — performs nearly as well as the
+best single expert in hindsight.
+
+Experts: counter-last, frequency, Markov-like, WSLS, random.
+
+--- 42. Sleeper Agent (SleeperAgent) ---
+Plays pure random for 80 rounds, collecting data silently.
+
+After activation, uses a multi-predictor ensemble (frequency,
+Markov, pattern) on the 80 rounds of clean opponent data —
+data unaffected by adversarial adaptation since the opponent
+was just facing "Pure Random" during collection.
+
+--- 43. Shapeshifter (Shapeshifter) ---
+Cycles through 5 completely different strategies every 40 rounds.
+
+The opponent can't model it because the entire strategy changes
+before they accumulate enough data to counter it.
+
+Strategies: Random, Counter-last, Frequency, Markov, WSLS
+
+--- 44. Hot Streak (HotStreak) ---
+Rides winning streaks and retreats during losing streaks.
+
+When winning: repeats the winning move (it's working).
+When losing 3+ in a row: switches to pure random to reset.
+During neutral/draws: uses frequency counter.
+
+--- 45. Contrarian (Contrarian) ---
+Plays the move the opponent would LEAST expect.
+
+Tracks its own move history and deliberately plays the move
+it has used least recently. Opponents modeling our frequency
+will predict our most common move — we play the rarest one.
+
+--- 46. Monte Carlo Predictor (MonteCarloPredictor) ---
+Simulates random playout histories and picks the best counter.
+
+For each possible opponent move, estimates the probability by
+running Monte Carlo simulations over the observed transition
+patterns, then plays the move with the highest expected score.
+
+--- 47. Grudge Holder (GrudgeHolder) ---
+Remembers the exact (my_move, opp_move) pairs that caused losses.
+
+Tracks which of our moves got beaten and by what. Refuses to
+repeat moves that have historically led to losses against
+specific opponent replies. Exploits opponent's winning patterns.
+
+--- 48. Chameleon (Chameleon) ---
+Matches the opponent's own move distribution.
+
+If opponent plays 50% Rock, 30% Paper, 20% Scissors,
+Chameleon will also play 50% Rock, 30% Paper, 20% Scissors.
+
+This is surprisingly effective: against biased opponents,
+it creates "frequency proximity" that forces many draws,
+while the slight randomness prevents easy countering.
+Against pure random, it becomes pure random too.
+
+--- 49. Fibonacci Player (FibonacciPlayer) ---
+Uses Fibonacci sequence to determine move index.
+
+The Fibonacci sequence mod 3 produces a complex, non-repeating
+(for long stretches) pattern: 0,1,1,2,0,2,2,1,0,1,1,...
+
+Combined with opponent exploitation: 70% Fibonacci pattern,
+30% frequency counter. The Fibonacci base makes it harder
+for pattern detectors to find the cycle (period 8 in mod 3).
+
+--- 50. Lempel-Ziv Predictor (LempelZivPredictor) ---
+LZ78 compression-based sequence prediction.
+
+From information theory: a good compressor IS a good predictor.
+Builds a dictionary of observed subsequences incrementally.
+The current phrase context determines the prediction.
+
+If the opponent's sequence compresses poorly (high Kolmogorov
+complexity), they're close to random and we default to frequency.
+If it compresses well, we exploit the detected structure.
+
+--- 51. Context Tree (ContextTree) ---
+Context Tree Weighting — provably optimal universal prediction.
+
+A Bayesian mixture over ALL possible context depths (0 to D=6).
+Uses the Krichevsky-Trofimov (KT) estimator at each node and
+weights each depth by its posterior probability.
+
+Unlike N-Gram Predictor which tries fixed n=3,2,1, Context Tree
+computes a proper weighted average over ALL depths simultaneously,
+giving more weight to depths with better predictive track records.
+
+Joint history version: uses (my_move, opp_move) pairs as context,
+combining the upgrades from N-Gram's joint approach with CTW's
+optimal depth selection.
+
+--- 52. Max Entropy Predictor (MaxEntropyPredictor) ---
+Prediction via Jaynes' Maximum Entropy principle.
+
+Finds the distribution P(opp_next) with MAXIMUM ENTROPY subject
+to constraints from 3 observed feature scales:
+- Marginal frequencies (how often they play each move)
+- 1st-order transitions P(next | last)
+- 2nd-order transitions P(next | last_2, last_1)
+
+The MaxEnt solution is a log-linear (exponential family) model:
+log P(m) ∝ λ₁·log(f_marginal) + λ₂·log(f_transition) + λ₃·log(f_bigram)
+
+This is the "least biased" estimate consistent with observed data.
+Feature weights adapt based on recent predictive accuracy.
+
+--- 53. Poison Pill (PoisonPill) ---
+Deliberately plants a bias, waits for opponent to adapt, exploits.
+
+3-phase cycle repeated every 90 rounds:
+Phase 1 (30 rounds): Plant 85% Rock bias → opponent adapts to Paper
+Phase 2 (30 rounds): Exploit with 85% Scissors (beats their Paper)
+Phase 3 (30 rounds): Switch to 85% Paper → opponent expects Scissors
+Then: cycle poisons in a new order so it's never the same twice
+
+The key insight: most algorithms need ~15-25 rounds to detect a
+bias. Poison Pill changes every 30, keeping opponents perpetually
+one step behind.
+
+--- 54. Mirror Breaker (MirrorBreaker) ---
+Specifically designed to exploit reactive/mirror opponents.
+
+Phase 1: Play a diagnostic sequence to identify mirrors/copycats.
+Phase 2: If reactive opponent detected, create a feedback trap
+where the opponent's reactions become predictable.
+
+Against Mirror: I play R → they play R → I play P → they play P → ...
+Trap: I play the counter of whatever I played last.
+Against Counter: I play R → they play P →
+Trap: I play what I played last (they counter it, I counter their counter).
+Against non-reactive: fall back to Markov prediction.
+
+--- 55. The Usurper (TheUsurper) ---
+Identifies which known strategy archetype the opponent uses,
+then becomes a STRICTLY BETTER version of that strategy.
+
+5 archetype detectors run in parallel with exponentially decaying
+scores. Once an archetype is identified with confidence > 60%,
+The Usurper plays the specific hard counter.
+
+Unlike Anti-Strategy Detector (which counter-predicts), The Usurper
+counter-STRATEGIZES: it exploits the mathematical weakness of the
+entire strategy class, not just individual predictions.
+
+--- 56. Double Bluff (DoubleBluff) ---
+Multi-level reasoning with adaptive depth selection.
+
+Maintains 3 reasoning levels:
+Level 0: Counter their most common (basic frequency analysis)
+Level 1: "They predict level 0" → counter(counter(predicted))
+Level 2: "They predict level 1" → counter(counter(counter(predicted)))
+Note: Level 3 = Level 0 (mod 3 cycle), so 3 levels suffice.
+
+Tracks which reasoning level would have won historically (with
+exponential recency weighting) and follows the best-performing one.
+
+--- 57. Frequency Disruptor (FrequencyDisruptor) ---
+Deliberately creates FALSE patterns to mislead frequency-based opponents,
+while tracking and countering their actual moves.
+
+Phase 1 (20 rounds): Establish a strong fake pattern (e.g., RRPRR PRRPR...)
+Phase 2 (10 rounds): Switch to the move that destroys opponents
+who adapted to the fake pattern
+Phase 3: Execute frequency analysis on their REAL distribution
+(revealed during Phase 2, when they were chasing the fake)
+
+The disruptor cycles through different fake patterns to prevent
+meta-detection of the disruption strategy itself.
+
+--- 58. Deep Historian (DeepHistorian) ---
+Upgraded Historian with joint pattern matching and recency weighting.
+
+Original Historian matches opponent-only sequences of fixed length 4.
+Deep Historian improves on this with:
+- Joint (my_move, opp_move) pair patterns (captures interactive play)
+- Variable-length matching (tries 5,4,3,2 and takes longest match)
+- Exponential recency decay (recent patterns weighted 4x vs old ones)
+- Win/loss context (what happened after similar patterns before?)
+
+--- 59. Adaptive N-Gram (AdaptiveNGram) ---
+Upgraded N-Gram Predictor with dynamic context and decay-weighted counts.
+
+Original N-Gram tries fixed n=3,2,1 with equal weighting.
+Adaptive N-Gram improves with:
+- Dynamic context length (tries n=5 down to n=1)
+- Exponential decay on counts (recent transitions 3x heavier)
+- Accuracy tracking per context length (learns which n works best)
+- Joint (my, opp) pair contexts for deeper pattern capture
+
+Uses a meta-learner to select the best-performing context length
+based on rolling prediction accuracy.
+
+--- 60. Regret Minimizer (RegretMinimizer) ---
+Regret Matching — the foundation of modern game-playing AI.
+
+This is the core algorithm behind Libratus and Pluribus, the AIs
+that beat world champions at poker. It provably converges to a
+Nash equilibrium while exploiting non-Nash opponents.
+
+For each move, tracks REGRET: how much better we would have done
+playing that move vs what we actually played. Plays moves
+proportional to their positive cumulative regret.
+
+Regret formula:
+regret(m) += payoff(m, opp_move) - payoff(my_move, opp_move)
+strategy(m) = max(0, regret(m)) / sum(max(0, regret(m')))
+
+--- 61. Fourier Predictor (FourierPredictor) ---
+Applies Discrete Fourier Transform to detect hidden periodicities.
+
+Encodes opponent moves as numbers (R=0, P=1, S=2) and computes
+the DFT to find dominant frequency components. Extrapolates the
+dominant frequencies to predict the next value.
+
+The DFT decomposes the signal x[n] into frequency components:
+X[k] = Σ x[n] × e^(-2πi·k·n/N)
+
+If the opponent has ANY periodic pattern (even noisy), the DFT
+will detect it. Works against Cycle, Phase Shifter, Fibonacci,
+De Bruijn Walker, and any algorithm with periodic behavior.
+
+--- 62. Eigenvalue Predictor (EigenvaluePredictor) ---
+Predicts using the dominant eigenvector of the opponent's transition matrix.
+
+Builds a 3×3 transition matrix M[i][j] = P(opp plays j | opp played i).
+Computes the STATIONARY DISTRIBUTION π via power iteration:
+π = lim(n→∞) M^n × π₀
+
+The stationary distribution reveals the opponent's long-term behavior.
+For prediction, combines:
+- Current-row prediction (what follows their last move)
+- Stationary distribution (their overall bias)
+- 2nd-order: M² row (what happens after the current transition)
+
+Power iteration: π^(t+1) = M^T × π^(t), repeated until convergence.
+
+--- 63. Q-Learner v5 (QLearnerV5) ---
+Q-Learning v5 with linear function approximation.
+
+Replaces tabular Q(s,a) with Q(s,a) = wᵀ·φ(s,a) where φ is a
+16-dim feature vector per action (48 weights total).
+SGD update: w ← w + α·δ·φ where δ = r - Q(s,a).
+Experience replay performs SGD on past transitions.
+
+--- 64. Thompson Sampler v5 (ThompsonSamplerV5) ---
+Thompson Sampler v5 with Bayesian linear regression (pure Python).
+
+Maintains per-action posterior N(μ, Σ) where Σ⁻¹ = λI + Σ φφᵀ.
+Samples weights from posterior via Cholesky decomposition, picks
+action with highest Q-sample.
+
+--- 65. UCB Explorer v5 (UCBExplorerV5) ---
+LinUCB v5 — contextual bandit with linear payoff model (pure Python).
+
+For each action: UCB = wᵀφ + α·√(φᵀA⁻¹φ).
+A is the feature covariance matrix, updated online.
+
+--- 66. Gradient Learner v5 (GradientLearnerV5) ---
+Policy gradient v5 with linear softmax on features.
+
+Preferences h(a) = wₐᵀ·φ(s) per action. Policy π(a|s) = softmax(h).
+REINFORCE gradient update on linear weights.
+
+--- 67. Hidden Markov Oracle (HiddenMarkovOracle) ---
+HMM-based predictor that discovers opponent's hidden 'moods'.
+
+Assumes the opponent has 3 hidden states with different move
+distributions. Uses the forward algorithm for state inference
+and online Baum-Welch for parameter updates every 20 rounds.
+Predicts by marginalizing over hidden states.
+
+--- 68. Genetic Strategist (GeneticStrategist) ---
+Evolves a population of response tables via natural selection.
+
+Each genome maps (opp[-1], opp[-2]) → Move (9 entries).
+Fitness is tested against opponent's recent 50 moves.
+Every 25 rounds: selection, crossover, mutation.
+
+--- 69. PID Controller (PIDController) ---
+Feedback control strategy using PID (Proportional-Integral-Derivative).
+
+Error signal per move = expected win rate - actual win rate.
+PID regulates move selection probabilities via softmax.
+Kp=0.5, Ki=0.05, Kd=0.2, anti-windup on integral ±10.
+
+--- 70. Chaos Engine (ChaosEngine) ---
+Deterministic but unpredictable via the logistic map.
+
+Uses x_{n+1} = 3.99 · xₙ · (1-xₙ) for chaotic move generation.
+70% chaotic moves, 30% frequency exploitation.
+Re-seeds from outcome hash every 50 rounds.
+
+--- 71. Level-k Reasoner (LevelKReasoner) ---
+Cognitive hierarchy model — detects opponent's reasoning level.
+
+Level 0: uniform random
+Level 1: frequency counter (best respond to level 0)
+Level 2: counter frequency counter
+Level 3: counter-counter-counter
+Level 4: counter-counter-counter-counter
+
+Detects opponent's level by simulating each, then plays one
+level above. Falls back to Regret Matching when unclear.
+
+--- 72. UCB-NGram Fusion (UCBNGramFusion) ---
+Hybrid that fuses UCB bandit exploration with N-Gram pattern prediction.
+
+Analysis shows UCB Explorer beats N-Gram via early-game exploration
+unpredictability (rounds 0-200), while N-Gram dominates late-game
+once it has enough data to predict patterns (rounds 300+).
+
+This fusion combines three layers:
+1. Strategy Layer: UCB bandit, N-Gram predictor, frequency counter
+2. Selection Layer: softmax mixture weighted by rolling accuracy
+3. Meta-Prediction Layer: simulates opponent modeling OUR patterns
+and counter-rotates when we become predictable
+
+The meta-prediction layer is what makes this hybrid stronger than
+either parent — it resists being pattern-matched by N-Gram-type
+opponents while maintaining prediction power against others.
+
+--- 73. Iocaine Powder Plus (IocainePowderPlus) ---
+Upgraded Iocaine Powder with 12 meta-strategies.
+
+Original uses 6 meta-strategies. Plus version adds:
+- Markov counter: predict via transition matrix
+- Bigram counter: predict from (opp[-2],opp[-1]) pattern
+- Trigram counter: predict from (opp[-3],opp[-2],opp[-1])
+- Mirror of each new strategy (from opponent's perspective)
+- Sliding window scoring (last 50 rounds) with exponential decay
+
+--- 74. Dynamic Mixture (DynamicMixture) ---
+Upgraded Mixture Model with 8 experts, pruning, and spawning.
+
+Original has 5 fixed experts. Dynamic version adds:
+- 8 experts (+ Markov-2, Transition counter, Win-pattern)
+- Expert pruning: drop experts with <25% accuracy after 100 rounds
+- Expert spawning: clone best expert with noise every 200 rounds
+
+--- 75. Hierarchical Bayesian (HierarchicalBayesian) ---
+Upgraded Bayesian Predictor with learned prior and change-point detection.
+
+Original uses flat Dir(1,1,1) prior with 50-round window. This version:
+- Learns the prior α via evidence maximization (adapts over time)
+- Change-point detection: resets when KL divergence exceeds threshold
+- Multi-window ensemble: combines predictions from windows 20, 50, 100
+
+--- 76. Self-Model Detector (SelfModelDetector) ---
+Upgraded Anti-Strategy Detector with self-play opponent identification.
+
+Original detects 5 simple archetypes. Self-Model Detector:
+- Simulates what each of 10 candidate strategies would play
+- Finds which strategy the opponent most closely resembles
+- Plays the known counter to the detected strategy
+
+Candidate strategies are simple enough to simulate inline:
+constant, cycle, mirror, counter, frequency, markov, WSLS,
+anti-tit-for-tat, pattern-trigger, decay frequency.
+
+--- 77. PiBot (PiBot) ---
+Uses the digits of Pi to determine moves.
+
+Deterministic but high entropy. Uses the first 1000 digits of Pi.
+Maps digits: 0-2->Rock, 3-5->Paper, 6-9->Scissors (roughly balanced).
+
+--- 78. Golden Ratio (GoldenRatio) ---
+Uses the Golden Ratio to generate chaotic deterministic moves.
+
+Formula: move = floor((round_num * φ) % 1 * 3)
+This creates a quasi-periodic sequence that is hard to predict without
+knowing the exact formula.
+
+--- 79. Stock Broker (StockBroker) ---
+Treats R, P, S as stocks in a volatile market.
+
+- 'Stocks' gain value when they would have won the last round.
+- 'Stocks' lose value when they would have lost.
+- Adds random 'market noise' (volatility).
+- Always 'buys' (plays) the highest valued stock.
+
+--- 80. Quantum Collapse (QuantumCollapse) ---
+Maintains a 'superposition' of move probabilities.
+
+- Wins observable -> Reinforces the state (constructive interference).
+- Losses observable -> Collapses the probability (destructive interference).
+- Renormalizes after every observation.
+
+--- 81. Sound Wave (SoundWave) ---
+Generates moves based on oscillating sine waves.
+
+Uses constructive interference of two sine waves with different frequencies
+to create a complex but deterministic pattern.
+
+--- 82. Ackermann (Ackermann) ---
+Uses the Ackermann function to determine lookback depth.
+
+The Ackermann function grows extremely rapidly. We use small inputs
+derived from the round number to get a dynamic, non-linear lookback distance.
+
+--- 83. Prime Hunter (PrimeHunter) ---
+Plays aggressively only on prime-numbered rounds.
+
+- If round_num is prime: Plays a hard counter to opponent's last move.
+- If round_num is composite: Plays completely random to confuse prediction.
+
+--- 84. Compression Bot (CompressionBot) ---
+Uses zlib compression to predict the most likely next move.
+
+Based on Normalized Compression Distance (NCD).
+It asks: "Which hypothetical next move by the opponent makes their
+history string most compressible?"
+The most compressible sequence is the most predictable one.
+
+--- 85. Equilibrium Breaker (EquilibriumBreaker) ---
+Punishes deviations from Nash Equilibrium.
+
+If the opponent plays any move > 33.3% of the time, this bot
+identifies the frequency bias and exploits it, but remains close to
+random to avoid being exploited itself.
+
+--- 86. Delayed Mirror (DelayedMirror) ---
+Mirrors the opponent's move from 2 rounds ago.
+
+Effective against bots that expect immediate mirroring (like Tit-for-Tat)
+or immediate countering (like Win-Stay Lose-Shift).
+
+--- 87. Gene Sequencer (GeneSequencer) ---
+Treats moves as DNA sequences (codons) and allows for mutations.
+
+Looks for the last 5 moves (a 'gene') in historical data.
+Unlike standard pattern matchers, this allows for 1 'mutation' (mismatch)
+when searching, simulating biological sequence alignment.
+
+--- 88. Zodiac (Zodiac) ---
+Cycles through 12 different personality archetypes based on round number.
+
+Each 'sign' (every 12th round) has a distinct strategy:
+Aries(Aggro), Taurus(Stubborn), Gemini(Dual), Cancer(Paper), Leo(Winner),
+Virgo(Analytic), Libra(Balanced), Scorpio(Counter), Sagittarius(Random),
+Capricorn(WSLS), Aquarius(Chaos), Pisces(Mirror).
+
+--- 89. Neuro Evo (NeuroEvo) ---
+A minimal neural network (perceptron) that evolves weights on failure.
+
+Inputs: encoded history of last round.
+Weights: Evolve (add noise) whenever losing streak >= 3.
+
+--- 90. Geometry Bot (GeometryBot) ---
+Visualizes moves as vectors on an equilateral triangle unit circle.
+
+- Rock:     (1, 0)
+- Paper:    (-0.5, 0.866)
+- Scissors: (-0.5, -0.866)
+
+Calculates the centroid (average vector) of opponent's recent history.
+The response is the move corresponding to the vector *opposite* the centroid.
+This effectively counters the opponent's 'average bias' in 2D space.
+
+--- 91. Gambler's Fallacy (GamblersFallacy) ---
+Assume that if a move hasn't happened in a while, it is 'due'.
+
+looks at the last 20 moves. Plays the move that the opponent has
+played the LEAST frequently, expecting them to 'balance' it out.
+
+--- 92. Nash Stabilizer (NashStabilizer) ---
+Tries to enforce a perfect 33/33/33 distribution in its OWN history.
+
+If it has played Rock too little, it plays Rock.
+This makes it asymptotically unexploitable by frequency analysis.
+
+--- 93. Stubborn Loser (StubbornLoser) ---
+The opposite of Win-Stay Lose-Shift.
+
+- Win: Shift (Don't push your luck).
+- Lose: Stay (Stubbornly try again, doubling down).
+
+Beats standard WSLS players who expect you to shift on loss.
+
+--- 94. Traitor Mirror (TraitorMirror) ---
+Mirrors the opponent 80% of the time to build trust.
+
+But 20% of the time, it 'betrays' the mirror logic by playing
+the counter to the opponent's last move, catching them if they
+try to counter the expected mirror.
+
+--- 95. Opponent Persona (OpponentPersona) ---
+Classifies opponent into a 'Persona' based on history.
+
+- Aggressive (>40% Rock): Counts with Paper.
+- Defensive (>40% Paper): Counts with Scissors.
+- Evasive (>40% Scissors): Counts with Rock.
+- Balanced: Plays Random.
+
+--- 96. Exponential Backoff (ExponentialBackoff) ---
+Detects losing streaks and backs off into randomness.
+
+If on a losing streak (N), play purely random for 2^N rounds
+to break any predictive lock the opponent has.
+
+--- 97. Pattern Breaker (PatternBreaker) ---
+Monitors its OWN moves to detect and break obviously patterns.
+
+If it detects it has played R-R-R or R-P-S (cycles),
+it intentionally deviates from that pattern.
+
+--- 98. Sliding Window Vote (SlidingWindowVote) ---
+Takes a vote from 3 distinct historical windows.
+
+Predicts opponent move based on:
+1. Short term (last 5)
+2. Medium term (last 20)
+3. Long term (last 100)
+
+Plays the counter to the majority vote prediction.
+
+--- 99. Double Agent (DoubleAgent) ---
+Switches strategies every 10 rounds to confuse opponent.
+
+- Agent A (Rounds 0-9): Mirror Opponent.
+- Agent B (Rounds 10-19): Counter Opponent.
+- Repeat.
+
+--- 100. Counter Strike (CounterStrike) ---
+Specifically targets Win-Stay Lose-Shift (WSLS) logic.
+
+Assumes opponent is playing WSLS:
+- If I Won (Opp Lost): They will Shift. (To beat my last move).
+Prediction: They play Counter(MyLast).
+Response: I play Counter(Counter(MyLast)).
+
+- If I Lost (Opp Won): They will Stay. (Replay their last).
+Prediction: They play OppLast.
+Response: I play Counter(OppLast).
