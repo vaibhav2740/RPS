@@ -1,16 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RPS Playground – Algorithm Battle Arena</title>
-    <meta name="description" content="Rock-Paper-Scissors algorithm testing playground with Elo ratings, tournaments, and head-to-head matches.">
+    <meta name="description"
+        content="Rock-Paper-Scissors algorithm testing playground with Elo ratings, tournaments, and head-to-head matches.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
     <style>
         /* ===== RESET & BASE ===== */
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         :root {
             --bg-primary: #0a0e1a;
             --bg-secondary: #111827;
@@ -35,7 +46,11 @@
             --radius-sm: 10px;
             --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        html { scroll-behavior: smooth; }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
             background: var(--bg-primary);
@@ -71,6 +86,7 @@
             text-align: center;
             padding: 48px 0 32px;
         }
+
         .logo {
             font-size: 3rem;
             font-weight: 800;
@@ -81,7 +97,11 @@
             letter-spacing: -1px;
             margin-bottom: 8px;
         }
-        .logo span { font-size: 3.2rem; }
+
+        .logo span {
+            font-size: 3.2rem;
+        }
+
         .subtitle {
             color: var(--text-secondary);
             font-size: 1.05rem;
@@ -105,6 +125,7 @@
             margin-left: auto;
             margin-right: auto;
         }
+
         .tab-btn {
             flex: 1;
             padding: 12px 20px;
@@ -119,10 +140,12 @@
             transition: var(--transition);
             white-space: nowrap;
         }
+
         .tab-btn:hover {
             color: var(--text-secondary);
-            background: rgba(255,255,255,0.03);
+            background: rgba(255, 255, 255, 0.03);
         }
+
         .tab-btn.active {
             background: var(--gradient-main);
             color: #fff;
@@ -130,12 +153,25 @@
         }
 
         /* ===== TAB CONTENT ===== */
-        .tab-content { display: none; animation: fadeSlideUp 0.4s ease; }
-        .tab-content.active { display: block; }
+        .tab-content {
+            display: none;
+            animation: fadeSlideUp 0.4s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
 
         @keyframes fadeSlideUp {
-            from { opacity: 0; transform: translateY(16px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* ===== GLASS CARD ===== */
@@ -150,10 +186,12 @@
             box-shadow: var(--shadow-lg);
             transition: var(--transition);
         }
+
         .card:hover {
-            border-color: rgba(255,255,255,0.12);
+            border-color: rgba(255, 255, 255, 0.12);
             box-shadow: var(--shadow-lg), var(--shadow-glow);
         }
+
         .card-title {
             font-size: 1.15rem;
             font-weight: 700;
@@ -162,7 +200,10 @@
             align-items: center;
             gap: 10px;
         }
-        .card-title .icon { font-size: 1.3rem; }
+
+        .card-title .icon {
+            font-size: 1.3rem;
+        }
 
         /* ===== FORM CONTROLS ===== */
         .form-row {
@@ -172,10 +213,12 @@
             flex-wrap: wrap;
             margin-bottom: 20px;
         }
+
         .form-group {
             flex: 1;
             min-width: 180px;
         }
+
         .form-group label {
             display: block;
             font-size: 0.8rem;
@@ -185,7 +228,9 @@
             text-transform: uppercase;
             letter-spacing: 1px;
         }
-        select, input[type="number"] {
+
+        select,
+        input[type="number"] {
             width: 100%;
             padding: 12px 16px;
             background: rgba(0, 0, 0, 0.3);
@@ -198,16 +243,20 @@
             appearance: none;
             outline: none;
         }
+
         select {
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
             background-position: right 14px center;
             padding-right: 36px;
         }
-        select:focus, input[type="number"]:focus {
+
+        select:focus,
+        input[type="number"]:focus {
             border-color: var(--accent-cyan);
             box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
         }
+
         select option {
             background: #1e293b;
             color: var(--text-primary);
@@ -228,30 +277,40 @@
             position: relative;
             overflow: hidden;
         }
+
         .btn-primary {
             background: var(--gradient-main);
             color: #fff;
             box-shadow: 0 4px 20px rgba(6, 182, 212, 0.3);
         }
+
         .btn-primary:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 30px rgba(6, 182, 212, 0.4);
         }
-        .btn-primary:active { transform: translateY(0); }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
         .btn-primary:disabled {
             opacity: 0.5;
             cursor: not-allowed;
             transform: none;
         }
+
         .btn-primary::after {
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
             transform: translateX(-100%);
             transition: 0.5s;
         }
-        .btn-primary:hover::after { transform: translateX(100%); }
+
+        .btn-primary:hover::after {
+            transform: translateX(100%);
+        }
 
         /* ===== VS DISPLAY ===== */
         .vs-container {
@@ -261,6 +320,7 @@
             justify-content: center;
             margin: 8px 0;
         }
+
         .vs-label {
             font-size: 1.5rem;
             font-weight: 800;
@@ -275,19 +335,29 @@
             display: none;
             animation: fadeSlideUp 0.5s ease;
         }
-        .result-panel.visible { display: block; }
+
+        .result-panel.visible {
+            display: block;
+        }
 
         .result-header {
             text-align: center;
             margin-bottom: 28px;
         }
+
         .result-winner {
             font-size: 1.6rem;
             font-weight: 800;
             margin-bottom: 4px;
         }
-        .result-winner.win { color: var(--accent-green); }
-        .result-winner.draw { color: var(--accent-yellow); }
+
+        .result-winner.win {
+            color: var(--accent-green);
+        }
+
+        .result-winner.draw {
+            color: var(--accent-yellow);
+        }
 
         .stats-grid {
             display: grid;
@@ -295,16 +365,27 @@
             gap: 0;
             align-items: start;
         }
+
         .stat-col {
             text-align: center;
         }
-        .stat-col.left { text-align: right; padding-right: 24px; }
-        .stat-col.right { text-align: left; padding-left: 24px; }
+
+        .stat-col.left {
+            text-align: right;
+            padding-right: 24px;
+        }
+
+        .stat-col.right {
+            text-align: left;
+            padding-left: 24px;
+        }
+
         .stat-col.center {
             border-left: 1px solid var(--border-glass);
             border-right: 1px solid var(--border-glass);
             padding: 0 24px;
         }
+
         .stat-name {
             font-size: 1.05rem;
             font-weight: 700;
@@ -314,12 +395,14 @@
             background-clip: text;
             margin-bottom: 16px;
         }
+
         .stat-row {
             display: flex;
             justify-content: space-between;
             padding: 6px 0;
             font-size: 0.9rem;
         }
+
         .stat-label-center {
             color: var(--text-secondary);
             font-size: 0.8rem;
@@ -328,30 +411,40 @@
             letter-spacing: 0.5px;
             padding: 8px 0;
         }
+
         .stat-value {
             font-family: 'JetBrains Mono', monospace;
             font-weight: 500;
             padding: 8px 0;
         }
+
         .elo-delta {
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.85rem;
             font-weight: 600;
         }
-        .elo-delta.positive { color: var(--accent-green); }
-        .elo-delta.negative { color: var(--accent-red); }
+
+        .elo-delta.positive {
+            color: var(--accent-green);
+        }
+
+        .elo-delta.negative {
+            color: var(--accent-red);
+        }
 
         /* ===== LEADERBOARD TABLE ===== */
         .table-wrapper {
             overflow-x: auto;
             border-radius: var(--radius-sm);
         }
+
         table {
             width: 100%;
             border-collapse: separate;
             border-spacing: 0;
             font-size: 0.88rem;
         }
+
         thead th {
             background: rgba(0, 0, 0, 0.3);
             padding: 14px 12px;
@@ -366,46 +459,69 @@
             position: sticky;
             top: 0;
         }
-        thead th:first-child { border-radius: 10px 0 0 0; }
-        thead th:last-child { border-radius: 0 10px 0 0; }
+
+        thead th:first-child {
+            border-radius: 10px 0 0 0;
+        }
+
+        thead th:last-child {
+            border-radius: 0 10px 0 0;
+        }
+
         tbody tr {
             transition: var(--transition);
         }
+
         tbody tr:hover {
             background: rgba(6, 182, 212, 0.06);
         }
+
         tbody td {
             padding: 12px;
-            border-bottom: 1px solid rgba(255,255,255,0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.85rem;
             white-space: nowrap;
         }
+
         tbody td:first-child {
             font-weight: 700;
             color: var(--text-secondary);
         }
+
         tbody td:nth-child(2) {
             font-family: 'Inter', sans-serif;
             font-weight: 600;
             color: var(--text-primary);
         }
-        .rank-1 td:first-child { color: #fbbf24; }
-        .rank-2 td:first-child { color: #d1d5db; }
-        .rank-3 td:first-child { color: #d97706; }
+
+        .rank-1 td:first-child {
+            color: #fbbf24;
+        }
+
+        .rank-2 td:first-child {
+            color: #d1d5db;
+        }
+
+        .rank-3 td:first-child {
+            color: #d97706;
+        }
 
         .elo-cell {
             font-weight: 700;
             color: var(--accent-cyan);
         }
+
         .outcome-win {
             color: var(--accent-green);
             font-weight: 700;
         }
+
         .outcome-loss {
             color: var(--accent-red);
             font-weight: 700;
         }
+
         .outcome-draw {
             color: var(--accent-yellow);
             font-weight: 600;
@@ -416,14 +532,18 @@
             overflow-x: auto;
             margin-top: 24px;
         }
+
         .matrix-table {
             font-size: 0.78rem;
         }
-        .matrix-table th, .matrix-table td {
+
+        .matrix-table th,
+        .matrix-table td {
             padding: 6px 8px;
             text-align: center;
             min-width: 32px;
         }
+
         .matrix-table .algo-name {
             text-align: right;
             font-family: 'Inter', sans-serif;
@@ -434,10 +554,24 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        .matrix-cell-w { color: var(--accent-green); font-weight: 700; }
-        .matrix-cell-l { color: var(--accent-red); font-weight: 700; }
-        .matrix-cell-d { color: var(--text-muted); }
-        .matrix-cell-self { color: var(--text-muted); }
+
+        .matrix-cell-w {
+            color: var(--accent-green);
+            font-weight: 700;
+        }
+
+        .matrix-cell-l {
+            color: var(--accent-red);
+            font-weight: 700;
+        }
+
+        .matrix-cell-d {
+            color: var(--text-muted);
+        }
+
+        .matrix-cell-self {
+            color: var(--text-muted);
+        }
 
         /* ===== MATCHUPS LIST (One vs All) ===== */
         .matchup-grid {
@@ -446,24 +580,28 @@
             gap: 12px;
             margin-top: 20px;
         }
+
         .matchup-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 12px 16px;
-            background: rgba(0,0,0,0.2);
+            background: rgba(0, 0, 0, 0.2);
             border-radius: var(--radius-sm);
             border: 1px solid var(--border-glass);
             transition: var(--transition);
         }
+
         .matchup-item:hover {
-            border-color: rgba(255,255,255,0.1);
-            background: rgba(0,0,0,0.3);
+            border-color: rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
         }
+
         .matchup-name {
             font-weight: 600;
             font-size: 0.88rem;
         }
+
         .matchup-result {
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.8rem;
@@ -471,6 +609,7 @@
             gap: 8px;
             align-items: center;
         }
+
         .matchup-badge {
             padding: 3px 10px;
             border-radius: 6px;
@@ -478,9 +617,21 @@
             font-weight: 800;
             letter-spacing: 0.5px;
         }
-        .matchup-badge.win { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
-        .matchup-badge.loss { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
-        .matchup-badge.draw { background: rgba(245, 158, 11, 0.15); color: var(--accent-yellow); }
+
+        .matchup-badge.win {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+        }
+
+        .matchup-badge.loss {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+        }
+
+        .matchup-badge.draw {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-yellow);
+        }
 
         /* ===== LOADING SPINNER ===== */
         .spinner {
@@ -488,7 +639,11 @@
             text-align: center;
             padding: 40px;
         }
-        .spinner.visible { display: block; }
+
+        .spinner.visible {
+            display: block;
+        }
+
         .spinner-ring {
             width: 48px;
             height: 48px;
@@ -498,7 +653,13 @@
             animation: spin 0.8s linear infinite;
             margin: 0 auto 16px;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         .spinner-text {
             color: var(--text-secondary);
             font-size: 0.9rem;
@@ -509,7 +670,11 @@
             display: none;
             animation: fadeSlideUp 0.4s ease;
         }
-        .progress-panel.visible { display: block; }
+
+        .progress-panel.visible {
+            display: block;
+        }
+
         .progress-bar-outer {
             width: 100%;
             height: 28px;
@@ -520,6 +685,7 @@
             margin-bottom: 16px;
             position: relative;
         }
+
         .progress-bar-inner {
             height: 100%;
             background: var(--gradient-main);
@@ -528,17 +694,25 @@
             min-width: 0%;
             position: relative;
         }
+
         .progress-bar-inner::after {
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
             animation: shimmer 2s ease infinite;
         }
+
         @keyframes shimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
         }
+
         .progress-pct {
             position: absolute;
             inset: 0;
@@ -549,21 +723,24 @@
             font-size: 0.8rem;
             font-weight: 700;
             color: #fff;
-            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
             z-index: 1;
         }
+
         .progress-stats {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 12px;
             margin-bottom: 12px;
         }
+
         .progress-stat {
             background: rgba(0, 0, 0, 0.2);
             border-radius: var(--radius-sm);
             border: 1px solid var(--border-glass);
             padding: 12px 16px;
         }
+
         .progress-stat-label {
             font-size: 0.7rem;
             font-weight: 600;
@@ -572,18 +749,21 @@
             letter-spacing: 1px;
             margin-bottom: 4px;
         }
+
         .progress-stat-value {
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.95rem;
             font-weight: 600;
             color: var(--text-primary);
         }
+
         .progress-match {
             text-align: center;
             padding: 8px 0;
             color: var(--text-secondary);
             font-size: 0.85rem;
         }
+
         .progress-match strong {
             color: var(--accent-cyan);
         }
@@ -598,17 +778,46 @@
 
         /* ===== RESPONSIVE ===== */
         @media (max-width: 640px) {
-            .logo { font-size: 2rem; }
-            .form-row { flex-direction: column; gap: 12px; }
-            .form-group { min-width: 100%; }
-            .stats-grid { grid-template-columns: 1fr; gap: 24px; }
-            .stat-col.left, .stat-col.right { text-align: center; padding: 0; }
-            .stat-col.center { border: none; padding: 0; }
-            .card { padding: 20px; }
-            .tabs { max-width: 100%; }
+            .logo {
+                font-size: 2rem;
+            }
+
+            .form-row {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .form-group {
+                min-width: 100%;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+
+            .stat-col.left,
+            .stat-col.right {
+                text-align: center;
+                padding: 0;
+            }
+
+            .stat-col.center {
+                border: none;
+                padding: 0;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .tabs {
+                max-width: 100%;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <!-- HEADER -->
@@ -621,6 +830,7 @@
         <nav class="tabs">
             <button class="tab-btn active" data-tab="h2h" id="tab-h2h">⚔️ Head-to-Head</button>
             <button class="tab-btn" data-tab="tournament" id="tab-tournament">🏆 Tournament</button>
+            <button class="tab-btn" data-tab="competition" id="tab-competition">🏅 Competition</button>
             <button class="tab-btn" data-tab="ova" id="tab-ova">🤖 One vs All</button>
         </nav>
 
@@ -756,6 +966,80 @@
                 <div class="card">
                     <div class="card-title"><span class="icon">🔀</span> Head-to-Head Matrix</div>
                     <div class="matrix-wrapper" id="trn-matrix"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== COMPETITION TAB ===== -->
+        <div class="tab-content" id="content-competition">
+            <div class="card">
+                <div class="card-title"><span class="icon">🏅</span> Competition Tournament</div>
+                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem; line-height: 1.6;">
+                    Tournament with <strong>opponent metadata</strong> — each algorithm knows its opponent's name
+                    and prior tournament results. Runs sequentially (100 rounds/match).
+                    Algorithms that implement <code style="color: var(--accent-cyan);">set_match_context()</code> can
+                    exploit this for meta-strategy (<em>The Hydra</em> does!).
+                </p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Rounds per match</label>
+                        <input type="number" id="comp-rounds" value="100" min="10" max="10000" step="10">
+                    </div>
+                    <div class="form-group">
+                        <label>Seed (optional)</label>
+                        <input type="number" id="comp-seed" placeholder="Random">
+                    </div>
+                    <div class="form-group" style="flex:0;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary" id="comp-run" onclick="runCompetition()">🏅 Run</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="spinner" id="comp-spinner">
+                <div class="spinner-ring"></div>
+                <div class="spinner-text">Starting competition...</div>
+            </div>
+
+            <div class="progress-panel" id="comp-progress">
+                <div class="card">
+                    <div class="card-title"><span class="icon">⏳</span> Competition Progress <span
+                            style="color: var(--accent-yellow); font-size: 0.75rem; margin-left: 8px;">⚠️ Sequential —
+                            slower but metadata-aware</span></div>
+                    <div class="progress-bar-outer">
+                        <div class="progress-bar-inner" id="comp-bar" style="width: 0%"></div>
+                        <div class="progress-pct" id="comp-pct">0%</div>
+                    </div>
+                    <div class="progress-stats">
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Matches Completed</div>
+                            <div class="progress-stat-value" id="comp-count">0 / 0</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Elapsed</div>
+                            <div class="progress-stat-value" id="comp-elapsed">0s</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Estimated Time Left</div>
+                            <div class="progress-stat-value" id="comp-eta">Calculating...</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Last Match</div>
+                            <div class="progress-stat-value" id="comp-last-winner">—</div>
+                        </div>
+                    </div>
+                    <div class="progress-match" id="comp-match">Preparing matches...</div>
+                </div>
+            </div>
+
+            <div class="result-panel" id="comp-result">
+                <div class="card">
+                    <div class="card-title"><span class="icon">📊</span> Competition Leaderboard</div>
+                    <div class="table-wrapper" id="comp-leaderboard"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><span class="icon">🔀</span> Head-to-Head Matrix</div>
+                    <div class="matrix-wrapper" id="comp-matrix"></div>
                 </div>
             </div>
         </div>
@@ -1112,10 +1396,10 @@
 
         function buildMatrixTable(matrix, names) {
             let html = `<table class="matrix-table"><thead><tr><th></th>`;
-            names.forEach((_, i) => { html += `<th>${i+1}</th>`; });
+            names.forEach((_, i) => { html += `<th>${i + 1}</th>`; });
             html += `</tr></thead><tbody>`;
             names.forEach((name, i) => {
-                html += `<tr><td class="algo-name" title="${name}">${i+1}. ${name}</td>`;
+                html += `<tr><td class="algo-name" title="${name}">${i + 1}. ${name}</td>`;
                 names.forEach((opp, j) => {
                     if (name === opp) {
                         html += `<td class="matrix-cell-self">·</td>`;
@@ -1130,6 +1414,64 @@
             html += `</tbody></table>`;
             return html;
         }
+
+        // ===== COMPETITION =====
+        function runCompetition() {
+            const btn = document.getElementById('comp-run');
+            btn.disabled = true;
+            hide('comp-result');
+            hide('comp-progress');
+            showSpinner('comp-spinner');
+
+            const rounds = parseInt(document.getElementById('comp-rounds').value);
+            const seed = getSeed('comp-seed');
+            let url = `/api/competition/stream?rounds=${rounds}`;
+            if (seed !== null) url += `&seed=${seed}`;
+
+            const source = new EventSource(url);
+
+            source.addEventListener('progress', (e) => {
+                hideSpinner('comp-spinner');
+                show('comp-progress');
+                const d = JSON.parse(e.data);
+                document.getElementById('comp-bar').style.width = d.pct + '%';
+                document.getElementById('comp-pct').textContent = d.pct + '%';
+                document.getElementById('comp-count').textContent = `${d.completed.toLocaleString()} / ${d.total.toLocaleString()}`;
+                document.getElementById('comp-elapsed').textContent = formatTime(d.elapsed);
+                document.getElementById('comp-eta').textContent = d.eta > 0 ? formatTime(d.eta) : 'Almost done...';
+                document.getElementById('comp-match').innerHTML = `Last: <strong>${d.match}</strong> → ${d.a_wins || '?'}-${d.b_wins || '?'}`;
+                document.getElementById('comp-last-winner').textContent = d.winner;
+            });
+
+            source.addEventListener('done', (e) => {
+                source.close();
+                hide('comp-progress');
+                const data = JSON.parse(e.data);
+                renderCompetition(data);
+                btn.disabled = false;
+            });
+
+            source.addEventListener('error', () => {
+                source.close();
+                hideSpinner('comp-spinner');
+                hide('comp-progress');
+                btn.disabled = false;
+                console.error('Competition stream error');
+            });
+        }
+
+        function renderCompetition(data) {
+            // Sort by score (match wins) instead of Elo for competition mode
+            const sorted = [...data.leaderboard].sort((a, b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                return b.round_win_pct - a.round_win_pct;
+            });
+            document.getElementById('comp-leaderboard').innerHTML = buildLeaderboardTable(sorted);
+            const names = sorted.map(e => e.name);
+            document.getElementById('comp-matrix').innerHTML = buildMatrixTable(data.matrix, names);
+            show('comp-result');
+        }
     </script>
 </body>
+
 </html>

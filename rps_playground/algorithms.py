@@ -25,6 +25,20 @@ class Algorithm(ABC):
         """Reset any internal state between matches."""
         pass
 
+    def set_match_context(self, opponent_name: str, opponent_history: list[dict]):
+        """Receive metadata about the opponent before a match begins.
+
+        Called by the competition tournament mode. Override in subclasses
+        to exploit opponent name and tournament record.
+
+        Args:
+            opponent_name: Name of the opponent algorithm.
+            opponent_history: List of dicts with opponent's prior match results:
+                [{"opponent": str, "result": "win"|"loss"|"draw",
+                  "score": "W-L", "rounds": int}]
+        """
+        pass
+
     def __repr__(self):
         return f"<{self.name}>"
 
@@ -3777,10 +3791,1800 @@ class LevelKReasoner(Algorithm):
             # High level or unclear → regret matching
             return self._regret_matching_move()
 
+# ===========================================================================
+#  COMPETITION META-ALGORITHM (72)
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# 72: The Hydra (8-expert Hedge ensemble, competition-optimized)
+# ---------------------------------------------------------------------------
+
+class TheHydra(Algorithm):
+    """Competition-optimized meta-algorithm with 8-expert Hedge ensemble.
+
+    Wraps the CompetitionBot from competition.py for use in the playground.
+    Designed for 100-round matches with fast convergence.
+    Uses frequency, Markov, N-gram, decay, anti-pattern, Nash, Iocaine,
+    and Bayesian transition experts with multiplicative weight updates.
+
+    In competition mode (when set_match_context is called), also exploits
+    opponent name and tournament history for meta-strategy.
+    """
+    name = "The Hydra"
+
+    def reset(self):
+        from rps_playground.competition import CompetitionBot
+        self._bot = CompetitionBot()
+        self._move_to_int = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._int_to_move = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._opponent_name = ""
+        self._opponent_history = []
+
+    def set_match_context(self, opponent_name, opponent_history):
+        """Exploit opponent metadata in competition tournament mode."""
+        self._opponent_name = opponent_name
+        self._opponent_history = opponent_history
+
+    def choose(self, round_num, my_history, opp_history):
+        # Build history in competition format: list of [my_int, opp_int]
+        history = []
+        for my_m, opp_m in zip(my_history, opp_history):
+            history.append([self._move_to_int[my_m], self._move_to_int[opp_m]])
+
+        result = self._bot.make_move(
+            history, self._opponent_name, self._opponent_history
+        )
+        return self._int_to_move[result]
+
+
+# ===========================================================================
+#  NEXT-GEN COMPETITION ALGORITHMS (73-76)
+# ===========================================================================
+
+import numpy as _np
+
+
+# ---------------------------------------------------------------------------
+# 73: Tournament Scout — deep opponent history analysis
+# ---------------------------------------------------------------------------
+
+class TournamentScout(Algorithm):
+    """Analyzes opponent's full tournament record for strategic adaptation.
+
+    Uses opponent_history to classify the opponent archetype:
+    - STATIC: Always plays one move (wins only vs weak)
+    - PATTERN: Wins vs predictable, loses vs adaptive
+    - ADAPTIVE: Strong overall, requires Nash-heavy play
+    - RANDOM: Roughly 33% win rate everywhere → Nash optimal
+    - WEAK: Loses to most → exploit aggressively
+
+    Then selects from 5 expert strategies based on archetype.
+    Also tracks opponent move patterns within the match for exploitation.
+    """
+    name = "Tournament Scout"
+
+    def reset(self):
+        self._opponent_name = ""
+        self._opponent_history = []
+        self._archetype = "UNKNOWN"
+        # In-match tracking
+        self._opp_freq = [0, 0, 0]
+        self._opp_transitions = {m: [0.0, 0.0, 0.0] for m in range(3)}
+        self._my_last = None
+        self._opp_last = None
+        self._my_wins = 0
+        self._opp_wins = 0
+        self._round_num = 0
+        self._move_to_int = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._int_to_move = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+
+    def set_match_context(self, opponent_name, opponent_history):
+        self._opponent_name = opponent_name
+        self._opponent_history = opponent_history
+        self._archetype = self._classify(opponent_name, opponent_history)
+
+    def _classify(self, name, history):
+        name_l = name.lower()
+        if 'always' in name_l or 'constant' in name_l:
+            return 'STATIC'
+        if any(k in name_l for k in ['random', 'chaos', 'noise', 'uniform']):
+            return 'RANDOM'
+        if any(k in name_l for k in ['copy', 'mirror', 'tit']):
+            return 'REACTIVE'
+        if any(k in name_l for k in ['frequency', 'freq', 'counter']):
+            return 'FREQUENCY'
+        if any(k in name_l for k in ['meta', 'hydra', 'ensemble', 'mixture']):
+            return 'META'
+
+        if not history:
+            return 'UNKNOWN'
+
+        wins = sum(1 for m in history if m.get('result') == 'win')
+        total = len(history)
+        wr = wins / max(total, 1)
+
+        # Analyze margin of victories
+        margins = []
+        for m in history:
+            score = m.get('score', '0-0')
+            parts = score.split('-')
+            if len(parts) == 2:
+                try:
+                    w, l = int(parts[0]), int(parts[1])
+                    margins.append(w - l)
+                except ValueError:
+                    pass
+
+        # Big domination margins suggest a pattern exploiter
+        big_wins = sum(1 for mg in margins if mg > 30)
+        big_losses = sum(1 for mg in margins if mg < -30)
+
+        if wr > 0.7 and big_wins > total * 0.3:
+            return 'PATTERN_EXPLOITER'
+        elif wr > 0.6:
+            return 'ADAPTIVE'
+        elif wr < 0.25:
+            return 'WEAK'
+        elif big_losses > total * 0.4:
+            return 'PREDICTABLE'
+        else:
+            return 'UNKNOWN'
+
+    def choose(self, round_num, my_history, opp_history):
+        self._round_num = round_num
+
+        # Update in-match tracking
+        if opp_history:
+            opp_int = self._move_to_int[opp_history[-1]]
+            self._opp_freq[opp_int] += 1
+            if self._opp_last is not None:
+                self._opp_transitions[self._opp_last][opp_int] += 1
+            self._opp_last = opp_int
+
+        if my_history:
+            my_int = self._move_to_int[my_history[-1]]
+            self._my_last = my_int
+            # Track wins
+            if opp_history:
+                opp_int = self._move_to_int[opp_history[-1]]
+                if (my_int - opp_int) % 3 == 1:  # win
+                    self._my_wins += 1
+                elif (opp_int - my_int) % 3 == 1:  # loss
+                    self._opp_wins += 1
+
+        # Phase 1: Opening (first 5 rounds) — based on archetype
+        if round_num < 5:
+            return self._opening_move(round_num)
+
+        # Phase 2: Main strategy — archetype-driven with live adaptation
+        return self._main_strategy(round_num, opp_history)
+
+    def _opening_move(self, round_num):
+        if self._archetype == 'STATIC':
+            # Try to figure out what they always play
+            return [Move.PAPER, Move.SCISSORS, Move.ROCK, Move.PAPER, Move.SCISSORS][round_num]
+        elif self._archetype == 'REACTIVE':
+            return [Move.ROCK, Move.PAPER, Move.SCISSORS, Move.ROCK, Move.PAPER][round_num]
+        elif self._archetype in ('RANDOM', 'META'):
+            return self.rng.choice(MOVES)
+        else:
+            return [Move.PAPER, Move.ROCK, Move.SCISSORS, Move.PAPER, Move.ROCK][round_num]
+
+    def _main_strategy(self, round_num, opp_history):
+        # If we're losing badly, switch to pure Nash
+        if self._opp_wins - self._my_wins > 12:
+            return self.rng.choice(MOVES)
+
+        # If opponent looks random (balanced frequencies), play Nash
+        total_opp = sum(self._opp_freq)
+        if total_opp > 15:
+            expected = total_opp / 3
+            chi2 = sum((f - expected) ** 2 / expected for f in self._opp_freq)
+            if chi2 < 2.5:  # looks random
+                return self.rng.choice(MOVES)
+
+        # Use archetype-specific strategy
+        if self._archetype in ('STATIC', 'WEAK', 'PREDICTABLE'):
+            return self._exploit_frequency()
+        elif self._archetype == 'FREQUENCY':
+            return self._counter_frequency()
+        elif self._archetype == 'REACTIVE':
+            return self._counter_reactive()
+        elif self._archetype in ('META', 'ADAPTIVE', 'PATTERN_EXPLOITER'):
+            # Mix Nash with light exploitation
+            if self.rng.random() < 0.4:
+                return self.rng.choice(MOVES)
+            return self._exploit_transitions()
+        else:
+            # Unknown: use transition prediction with some noise
+            if self.rng.random() < 0.2:
+                return self.rng.choice(MOVES)
+            return self._exploit_transitions()
+
+    def _exploit_frequency(self):
+        most_common = self._opp_freq.index(max(self._opp_freq))
+        return self._int_to_move[(most_common + 1) % 3]
+
+    def _counter_frequency(self):
+        # They'll counter our most played → play what beats their counter
+        my_total = self._my_wins + self._opp_wins + (self._round_num - self._my_wins - self._opp_wins)
+        if my_total > 0 and self._my_last is not None:
+            their_prediction = max(range(3), key=lambda m: self._opp_freq[m])
+            their_counter = (their_prediction + 1) % 3
+            return self._int_to_move[(their_counter + 1) % 3]
+        return self.rng.choice(MOVES)
+
+    def _counter_reactive(self):
+        # They copy our last move → play what beats our last move's counter
+        if self._my_last is not None:
+            return self._int_to_move[(self._my_last + 2) % 3]
+        return self.rng.choice(MOVES)
+
+    def _exploit_transitions(self):
+        if self._opp_last is None:
+            return self.rng.choice(MOVES)
+        trans = self._opp_transitions[self._opp_last]
+        total = sum(trans)
+        if total < 2:
+            return self.rng.choice(MOVES)
+        predicted = trans.index(max(trans))
+        return self._int_to_move[(predicted + 1) % 3]
+
+
+# ---------------------------------------------------------------------------
+# 74: Neural Prophet — numpy MLP with online learning
+# ---------------------------------------------------------------------------
+
+class NeuralProphet(Algorithm):
+    """Real-time neural network opponent predictor built in pure numpy.
+
+    Architecture: 27-input → 32-hidden (ReLU) → 16-hidden (ReLU) → 3-output (softmax)
+
+    Input features (27-dim):
+      [0-2]   Opponent last move one-hot
+      [3-5]   Opponent 2nd-last move one-hot
+      [6-8]   My last move one-hot
+      [9-11]  My 2nd-last move one-hot
+      [12-14] Opponent frequency (normalized)
+      [15-17] My frequency (normalized)
+      [18-20] Transition from opp last → ? (normalized)
+      [21-23] Win/loss/draw rate (last 20 rounds)
+      [24]    Round progress (0-1)
+      [25]    Our current win margin (normalized)
+      [26]    Bias = 1.0
+
+    Weights initialized with Xavier init and trained online via SGD
+    after each round. Learning rate decays over the match.
+    """
+    name = "Neural Prophet"
+
+    def reset(self):
+        # Xavier initialization for weights
+        rng = _np.random.RandomState(42)
+        self._W1 = rng.randn(27, 32) * _np.sqrt(2.0 / 27)
+        self._b1 = _np.zeros(32)
+        self._W2 = rng.randn(32, 16) * _np.sqrt(2.0 / 32)
+        self._b2 = _np.zeros(16)
+        self._W3 = rng.randn(16, 3) * _np.sqrt(2.0 / 16)
+        self._b3 = _np.zeros(3)
+        # Pre-train biases to predict uniform
+        self._b3[:] = 0.0
+
+        self._move_to_int = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._int_to_move = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._lr = 0.05
+        self._last_features = None
+        self._opp_freq = _np.array([0.0, 0.0, 0.0])
+        self._my_freq = _np.array([0.0, 0.0, 0.0])
+        self._transitions = _np.ones((3, 3))  # Laplace smoothing
+        self._wld = _np.array([0.0, 0.0, 0.0])  # win, loss, draw counts
+        self._my_wins = 0
+        self._opp_wins = 0
+        self._opponent_name = ""
+        self._opponent_history = []
+
+    def set_match_context(self, opponent_name, opponent_history):
+        self._opponent_name = opponent_name
+        self._opponent_history = opponent_history
+        # Pre-bias based on opponent strength
+        if opponent_history:
+            wins = sum(1 for m in opponent_history if m.get('result') == 'win')
+            wr = wins / max(len(opponent_history), 1)
+            if wr > 0.7:
+                # Strong opponent — add noise to our predictions
+                self._lr = 0.03
+            elif wr < 0.3:
+                # Weak — learn faster to exploit
+                self._lr = 0.08
+
+    def _build_features(self, my_history, opp_history, round_num):
+        x = _np.zeros(27)
+        if opp_history:
+            opp_last = self._move_to_int[opp_history[-1]]
+            x[opp_last] = 1.0
+        if len(opp_history) >= 2:
+            opp_2 = self._move_to_int[opp_history[-2]]
+            x[3 + opp_2] = 1.0
+        if my_history:
+            my_last = self._move_to_int[my_history[-1]]
+            x[6 + my_last] = 1.0
+        if len(my_history) >= 2:
+            my_2 = self._move_to_int[my_history[-2]]
+            x[9 + my_2] = 1.0
+        # Frequencies
+        total_opp = max(self._opp_freq.sum(), 1)
+        x[12:15] = self._opp_freq / total_opp
+        total_my = max(self._my_freq.sum(), 1)
+        x[15:18] = self._my_freq / total_my
+        # Transition probabilities
+        if opp_history:
+            opp_last = self._move_to_int[opp_history[-1]]
+            trans = self._transitions[opp_last]
+            x[18:21] = trans / max(trans.sum(), 1)
+        # WLD rate (last 20)
+        total_wld = max(self._wld.sum(), 1)
+        x[21:24] = self._wld / total_wld
+        # Progress and margin
+        x[24] = round_num / 100.0
+        x[25] = (self._my_wins - self._opp_wins) / max(round_num, 1)
+        x[26] = 1.0  # bias
+        return x
+
+    def _forward(self, x):
+        """Forward pass. Returns (probs, cache)."""
+        z1 = x @ self._W1 + self._b1
+        a1 = _np.maximum(z1, 0)  # ReLU
+        z2 = a1 @ self._W2 + self._b2
+        a2 = _np.maximum(z2, 0)  # ReLU
+        z3 = a2 @ self._W3 + self._b3
+        # Softmax
+        z3 -= z3.max()
+        exp_z = _np.exp(z3)
+        probs = exp_z / exp_z.sum()
+        return probs, (x, z1, a1, z2, a2, z3)
+
+    def _backprop(self, probs, target, cache):
+        """Backpropagation with cross-entropy loss."""
+        x, z1, a1, z2, a2, z3 = cache
+        # dL/dz3 = probs - one_hot(target)
+        dz3 = probs.copy()
+        dz3[target] -= 1.0
+
+        # Layer 3
+        dW3 = _np.outer(a2, dz3)
+        db3 = dz3
+        da2 = dz3 @ self._W3.T
+
+        # Layer 2 (ReLU)
+        dz2 = da2 * (z2 > 0).astype(float)
+        dW2 = _np.outer(a1, dz2)
+        db2 = dz2
+        da1 = dz2 @ self._W2.T
+
+        # Layer 1 (ReLU)
+        dz1 = da1 * (z1 > 0).astype(float)
+        dW1 = _np.outer(x, dz1)
+        db1 = dz1
+
+        # SGD update
+        lr = self._lr
+        self._W3 -= lr * _np.clip(dW3, -1, 1)
+        self._b3 -= lr * _np.clip(db3, -1, 1)
+        self._W2 -= lr * _np.clip(dW2, -1, 1)
+        self._b2 -= lr * _np.clip(db2, -1, 1)
+        self._W1 -= lr * _np.clip(dW1, -1, 1)
+        self._b1 -= lr * _np.clip(db1, -1, 1)
+
+    def choose(self, round_num, my_history, opp_history):
+        # Update tracking from last round
+        if opp_history:
+            opp_int = self._move_to_int[opp_history[-1]]
+            self._opp_freq[opp_int] += 1
+            if len(opp_history) >= 2:
+                prev = self._move_to_int[opp_history[-2]]
+                self._transitions[prev][opp_int] += 1
+        if my_history:
+            my_int = self._move_to_int[my_history[-1]]
+            self._my_freq[my_int] += 1
+            if opp_history:
+                opp_int = self._move_to_int[opp_history[-1]]
+                if (my_int - opp_int) % 3 == 1:
+                    self._wld[0] += 1
+                    self._my_wins += 1
+                elif (opp_int - my_int) % 3 == 1:
+                    self._wld[1] += 1
+                    self._opp_wins += 1
+                else:
+                    self._wld[2] += 1
+
+        # Online learning: train on last round's prediction
+        if self._last_features is not None and opp_history:
+            target = self._move_to_int[opp_history[-1]]
+            probs, cache = self._forward(self._last_features)
+            self._backprop(probs, target, cache)
+
+        # First 3 rounds: play heuristically
+        if round_num < 3:
+            return self.rng.choice(MOVES)
+
+        # If losing badly → Nash
+        if round_num > 25 and self._opp_wins - self._my_wins > 10:
+            return self.rng.choice(MOVES)
+
+        # Forward pass to predict opponent's next move
+        features = self._build_features(my_history, opp_history, round_num)
+        self._last_features = features.copy()
+        probs, _ = self._forward(features)
+
+        # Counter the most likely opponent move
+        predicted_opp = int(_np.argmax(probs))
+        counter = (predicted_opp + 1) % 3
+
+        # Add 10% noise for unpredictability
+        if self.rng.random() < 0.10:
+            return self.rng.choice(MOVES)
+        return self._int_to_move[counter]
+
+
+# ---------------------------------------------------------------------------
+# 75: LSTM Predictor — recurrent sequence model in numpy
+# ---------------------------------------------------------------------------
+
+class LSTMPredictor(Algorithm):
+    """LSTM-based opponent move predictor in pure numpy.
+
+    Uses a simplified LSTM cell with 16 hidden units to process the
+    sequence of (my_move, opp_move) pairs. Predicts opponent's next move
+    from the hidden state. Trained online via truncated BPTT.
+
+    The LSTM naturally handles temporal patterns that fixed-window
+    approaches miss (e.g., long-range dependencies, rhythm changes).
+    """
+    name = "LSTM Predictor"
+
+    def reset(self):
+        self._hidden_size = 16
+        self._input_size = 6  # one-hot(my_move) + one-hot(opp_move)
+        hs = self._hidden_size
+        inp = self._input_size
+
+        # LSTM gate weights (input, forget, cell, output)
+        rng = _np.random.RandomState(123)
+        scale = 0.1
+        self._Wf = rng.randn(inp + hs, hs) * scale  # forget gate
+        self._bf = _np.ones(hs)  # bias forget gate to 1 (remember by default)
+        self._Wi = rng.randn(inp + hs, hs) * scale  # input gate
+        self._bi = _np.zeros(hs)
+        self._Wc = rng.randn(inp + hs, hs) * scale  # cell candidate
+        self._bc = _np.zeros(hs)
+        self._Wo = rng.randn(inp + hs, hs) * scale  # output gate
+        self._bo = _np.zeros(hs)
+
+        # Output layer: hidden → 3 (move prediction)
+        self._Wy = rng.randn(hs, 3) * scale
+        self._by = _np.zeros(3)
+
+        # State
+        self._h = _np.zeros(hs)
+        self._c = _np.zeros(hs)
+
+        self._move_to_int = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._int_to_move = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+
+        self._lr = 0.02
+        self._my_wins = 0
+        self._opp_wins = 0
+
+        # Store last prediction for learning
+        self._last_probs = None
+        self._last_h = None
+
+        self._opponent_name = ""
+        self._opponent_history = []
+
+    def set_match_context(self, opponent_name, opponent_history):
+        self._opponent_name = opponent_name
+        self._opponent_history = opponent_history
+
+    def _sigmoid(self, x):
+        x = _np.clip(x, -10, 10)
+        return 1.0 / (1.0 + _np.exp(-x))
+
+    def _tanh(self, x):
+        return _np.tanh(_np.clip(x, -10, 10))
+
+    def _lstm_step(self, x_t):
+        """One LSTM step. Updates h, c. Returns new h."""
+        concat = _np.concatenate([x_t, self._h])
+
+        f = self._sigmoid(concat @ self._Wf + self._bf)
+        i = self._sigmoid(concat @ self._Wi + self._bi)
+        c_hat = self._tanh(concat @ self._Wc + self._bc)
+        self._c = f * self._c + i * c_hat
+        o = self._sigmoid(concat @ self._Wo + self._bo)
+        self._h = o * self._tanh(self._c)
+
+        return self._h
+
+    def _predict(self, h):
+        """Predict opponent's next move from hidden state."""
+        logits = h @ self._Wy + self._by
+        logits -= logits.max()
+        exp_l = _np.exp(logits)
+        return exp_l / exp_l.sum()
+
+    def _online_update(self, target, probs, h_before):
+        """Simple online gradient update (output layer only for speed)."""
+        grad = probs.copy()
+        grad[target] -= 1.0
+        dWy = _np.outer(h_before, grad)
+        dby = grad
+        self._Wy -= self._lr * _np.clip(dWy, -0.5, 0.5)
+        self._by -= self._lr * _np.clip(dby, -0.5, 0.5)
+
+    def choose(self, round_num, my_history, opp_history):
+        # Update tracking
+        if my_history and opp_history:
+            my_int = self._move_to_int[my_history[-1]]
+            opp_int = self._move_to_int[opp_history[-1]]
+            if (my_int - opp_int) % 3 == 1:
+                self._my_wins += 1
+            elif (opp_int - my_int) % 3 == 1:
+                self._opp_wins += 1
+
+        # Online learning from last round
+        if self._last_probs is not None and opp_history:
+            target = self._move_to_int[opp_history[-1]]
+            self._online_update(target, self._last_probs, self._last_h)
+
+        # Build input and run LSTM step
+        if my_history and opp_history:
+            x_t = _np.zeros(self._input_size)
+            x_t[self._move_to_int[my_history[-1]]] = 1.0
+            x_t[3 + self._move_to_int[opp_history[-1]]] = 1.0
+            self._last_h = self._h.copy()
+            self._lstm_step(x_t)
+
+        # First 3 rounds: random
+        if round_num < 3:
+            self._last_probs = None
+            return self.rng.choice(MOVES)
+
+        # If losing badly → Nash
+        if round_num > 25 and self._opp_wins - self._my_wins > 10:
+            self._last_probs = None
+            return self.rng.choice(MOVES)
+
+        # Predict
+        probs = self._predict(self._h)
+        self._last_probs = probs.copy()
+
+        predicted_opp = int(_np.argmax(probs))
+        counter = (predicted_opp + 1) % 3
+
+        # 10% exploration
+        if self.rng.random() < 0.10:
+            return self.rng.choice(MOVES)
+        return self._int_to_move[counter]
+
+
+# ---------------------------------------------------------------------------
+# 76: Meta-Learner — adaptive ensemble with tournament-aware pre-selection
+# ---------------------------------------------------------------------------
+
+class MetaLearner(Algorithm):
+    """Ensemble meta-learner that pre-selects strategy from tournament data.
+
+    Maintains 6 sub-strategies:
+      1. Frequency exploitation (counter most-played)
+      2. Transition prediction (Markov order-1)
+      3. Anti-frequency (counter what counters our most-played)
+      4. Nash equilibrium (uniform random)
+      5. Gradient tracking (counter accelerating moves)
+      6. Win-stay-lose-shift
+
+    Pre-selects strategy weights using opponent tournament history.
+    Adapts weights using Exp3 (EXP with EXPloration) bandit algorithm.
+    """
+    name = "Meta-Learner"
+
+    def reset(self):
+        self._n_strategies = 6
+        self._weights = _np.ones(self._n_strategies) / self._n_strategies
+        self._gamma = 0.15  # exploration rate
+        self._eta = 0.3     # learning rate
+        self._move_to_int = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._int_to_move = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._opp_freq = _np.zeros(3)
+        self._my_freq = _np.zeros(3)
+        self._transitions = _np.ones((3, 3))  # Laplace
+        self._last_strategy = 0
+        self._last_move = None
+        self._opp_last = None
+        self._my_wins = 0
+        self._opp_wins = 0
+        self._opp_momentum = _np.zeros(3)
+        self._opponent_name = ""
+        self._opponent_history = []
+
+    def set_match_context(self, opponent_name, opponent_history):
+        self._opponent_name = opponent_name
+        self._opponent_history = opponent_history
+        self._pre_select_weights(opponent_name, opponent_history)
+
+    def _pre_select_weights(self, name, history):
+        """Bias strategy weights based on opponent profile."""
+        name_l = name.lower()
+        w = self._weights
+
+        # Name-based biases
+        if any(k in name_l for k in ['always', 'constant', 'static']):
+            w[0] = 5.0  # frequency exploitation
+            w[1] = 3.0  # transition
+        elif any(k in name_l for k in ['random', 'chaos', 'noise']):
+            w[3] = 5.0  # Nash
+            w[0] = 0.3
+        elif any(k in name_l for k in ['copy', 'mirror', 'tit']):
+            w[2] = 4.0  # anti-frequency
+            w[5] = 3.0  # WSLS
+        elif any(k in name_l for k in ['frequency', 'freq', 'counter']):
+            w[2] = 4.0  # anti-frequency
+        elif any(k in name_l for k in ['meta', 'hydra', 'ensemble']):
+            w[3] = 3.0  # Nash-heavy vs meta
+            w[4] = 2.0  # gradient
+
+        # Tournament record analysis
+        if history:
+            wins = sum(1 for m in history if m.get('result') == 'win')
+            wr = wins / max(len(history), 1)
+            if wr > 0.7:
+                w[3] *= 2.0  # Nash vs strong
+            elif wr < 0.3:
+                w[0] *= 2.0  # exploit weak
+                w[1] *= 2.0
+
+        # Normalize
+        total = w.sum()
+        if total > 0:
+            self._weights = w / total
+
+    def _strategy_move(self, strategy_idx, my_history, opp_history, round_num):
+        """Execute a specific strategy."""
+        if strategy_idx == 0:
+            # Frequency exploitation
+            if sum(self._opp_freq) < 3:
+                return self.rng.randint(0, 2)
+            return (int(_np.argmax(self._opp_freq)) + 1) % 3
+
+        elif strategy_idx == 1:
+            # Transition prediction
+            if self._opp_last is None:
+                return self.rng.randint(0, 2)
+            trans = self._transitions[self._opp_last]
+            predicted = int(_np.argmax(trans))
+            return (predicted + 1) % 3
+
+        elif strategy_idx == 2:
+            # Anti-frequency (counter what counters our most-played)
+            if sum(self._my_freq) < 3:
+                return self.rng.randint(0, 2)
+            our_most = int(_np.argmax(self._my_freq))
+            their_counter = (our_most + 1) % 3
+            return (their_counter + 1) % 3
+
+        elif strategy_idx == 3:
+            # Nash
+            return self.rng.randint(0, 2)
+
+        elif strategy_idx == 4:
+            # Gradient tracking (counter accelerating moves)
+            if sum(self._opp_freq) < 5:
+                return self.rng.randint(0, 2)
+            return (int(_np.argmax(self._opp_momentum)) + 1) % 3
+
+        elif strategy_idx == 5:
+            # Win-stay-lose-shift
+            if self._last_move is None:
+                return self.rng.randint(0, 2)
+            if my_history and opp_history:
+                my_int = self._move_to_int[my_history[-1]]
+                opp_int = self._move_to_int[opp_history[-1]]
+                if (my_int - opp_int) % 3 == 1:  # we won
+                    return my_int
+                else:
+                    return self.rng.randint(0, 2)
+            return self.rng.randint(0, 2)
+
+        return self.rng.randint(0, 2)
+
+    def choose(self, round_num, my_history, opp_history):
+        # Update tracking
+        if opp_history:
+            opp_int = self._move_to_int[opp_history[-1]]
+            old_freq = self._opp_freq.copy()
+            self._opp_freq[opp_int] += 1
+            if self._opp_last is not None:
+                self._transitions[self._opp_last][opp_int] += 1
+            self._opp_last = opp_int
+            # Momentum: how frequency is changing
+            total = max(self._opp_freq.sum(), 1)
+            new_pct = self._opp_freq / total
+            old_total = max(old_freq.sum(), 1)
+            old_pct = old_freq / old_total if old_total > 0 else _np.zeros(3)
+            self._opp_momentum = 0.7 * self._opp_momentum + 0.3 * (new_pct - old_pct)
+
+        if my_history:
+            my_int = self._move_to_int[my_history[-1]]
+            self._my_freq[my_int] += 1
+            self._last_move = my_int
+            if opp_history:
+                opp_int = self._move_to_int[opp_history[-1]]
+                if (my_int - opp_int) % 3 == 1:
+                    self._my_wins += 1
+                elif (opp_int - my_int) % 3 == 1:
+                    self._opp_wins += 1
+
+        # Reward last strategy
+        if round_num > 0 and my_history and opp_history:
+            my_int = self._move_to_int[my_history[-1]]
+            opp_int = self._move_to_int[opp_history[-1]]
+            if (my_int - opp_int) % 3 == 1:
+                reward = 1.0
+            elif (opp_int - my_int) % 3 == 1:
+                reward = -0.5
+            else:
+                reward = 0.0
+
+            # Exp3 update
+            prob_used = (1 - self._gamma) * self._weights[self._last_strategy] + \
+                        self._gamma / self._n_strategies
+            estimated_reward = reward / max(prob_used, 0.01)
+            self._weights[self._last_strategy] *= _np.exp(
+                self._eta * estimated_reward / self._n_strategies
+            )
+            # Normalize
+            total = self._weights.sum()
+            if total > 0:
+                self._weights /= total
+            else:
+                self._weights = _np.ones(self._n_strategies) / self._n_strategies
+
+        # If losing badly → boost Nash
+        if round_num > 25 and self._opp_wins - self._my_wins > 10:
+            return self.rng.choice(MOVES)
+
+        # Select strategy via Exp3 distribution
+        probs = (1 - self._gamma) * self._weights + self._gamma / self._n_strategies
+        strategy = self.rng.choices(range(self._n_strategies), weights=probs.tolist())[0]
+        self._last_strategy = strategy
+
+        move_int = self._strategy_move(strategy, my_history, opp_history, round_num)
+        return self._int_to_move[move_int]
+
+
+
+# ===========================================================================
+#  ELITE COMPETITION ALGORITHMS (77-81)
+#  Based on: Iocaine Powder, Greenberg, RPSContest winners, Kaggle top
+#  solutions, dllu.net strategies, and PPO-inspired RL
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# 77: History Matcher — Iocaine Powder-style multi-length history matching
+# ---------------------------------------------------------------------------
+
+class HistoryMatcher(Algorithm):
+    """Multi-length history matching with 6 metastrategies.
+
+    Inspired by Iocaine Powder (1999 RoShamBo Programming Competition winner).
+    Searches for repeating patterns at multiple history lengths (1-20) and
+    applies 6 metastrategies at each level:
+      P0: Direct prediction (play what beats predicted)
+      P'0: Beat opponent's P0 counter
+      P1: Predict based on MY history
+      P'1: Counter P1
+      P2: Predict based on COMBINED history
+      P'2: Counter P2
+
+    Each of the 6 × 20 = 120 predictors is scored and the
+    best-performing one is used. Fallback: decayed frequency counter.
+    """
+    name = "History Matcher"
+
+    def reset(self):
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._opp_hist = []
+        self._my_hist = []
+        self._max_len = 20
+        # 6 meta-strategies × 20 lengths = 120 predictors
+        self._n_meta = 6
+        self._scores = _np.zeros((self._n_meta, self._max_len))
+        self._predictions = _np.zeros((self._n_meta, self._max_len), dtype=int)
+        self._my_wins = 0
+        self._opp_wins = 0
+
+    def set_match_context(self, opponent_name, opponent_history):
+        pass  # Pure in-match learning
+
+    def _find_match(self, history, length):
+        """Find the last occurrence of the most recent `length` elements."""
+        if len(history) <= length:
+            return -1
+        pattern = history[-length:]
+        # Search backwards
+        for i in range(len(history) - length - 1, -1, -1):
+            if history[i:i+length] == pattern:
+                return i + length  # position after match
+        return -1
+
+    def _predict_opp(self, meta_idx, length):
+        """Generate prediction for a specific metastrategy + length combo."""
+        oh = self._opp_hist
+        mh = self._my_hist
+
+        if meta_idx == 0:
+            # P0: Match opponent history
+            pos = self._find_match(oh, length)
+            if pos >= 0 and pos < len(oh):
+                return oh[pos]
+        elif meta_idx == 1:
+            # P'0: What would beat opponent's P0 counter?
+            pos = self._find_match(oh, length)
+            if pos >= 0 and pos < len(oh):
+                opp_pred = oh[pos]
+                opp_counter = (opp_pred + 1) % 3
+                return (opp_counter + 1) % 3  # beat their counter
+        elif meta_idx == 2:
+            # P1: Match MY history pattern, predict their response
+            pos = self._find_match(mh, length)
+            if pos >= 0 and pos < len(oh):
+                return oh[pos]
+        elif meta_idx == 3:
+            # P'1: Counter P1
+            pos = self._find_match(mh, length)
+            if pos >= 0 and pos < len(oh):
+                opp_pred = oh[pos]
+                return (opp_pred + 2) % 3
+        elif meta_idx == 4:
+            # P2: Match interleaved history
+            combined = []
+            for m, o in zip(mh, oh):
+                combined.append(m * 3 + o)
+            pos = self._find_match(combined, length)
+            if pos >= 0 and pos < len(oh):
+                return oh[pos]
+        elif meta_idx == 5:
+            # P'2: Counter P2
+            combined = []
+            for m, o in zip(mh, oh):
+                combined.append(m * 3 + o)
+            pos = self._find_match(combined, length)
+            if pos >= 0 and pos < len(oh):
+                opp_pred = oh[pos]
+                return (opp_pred + 2) % 3
+
+        return -1  # no prediction
+
+    def choose(self, round_num, my_history, opp_history):
+        # Update internal history
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o = self._m2i[opp_history[-1]]
+            self._my_hist.append(m)
+            self._opp_hist.append(o)
+
+            if (m - o) % 3 == 1:
+                self._my_wins += 1
+            elif (o - m) % 3 == 1:
+                self._opp_wins += 1
+
+            # Score all predictors based on what actually happened
+            for mi in range(self._n_meta):
+                for li in range(self._max_len):
+                    pred = self._predictions[mi, li]
+                    if pred >= 0:
+                        if pred == o:
+                            self._scores[mi, li] += 1.0
+                        else:
+                            self._scores[mi, li] -= 0.5
+                        # Decay
+                        self._scores[mi, li] *= 0.95
+
+        # First 2 rounds: random
+        if round_num < 2:
+            return self.rng.choice(MOVES)
+
+        # If losing badly → Nash
+        if round_num > 20 and self._opp_wins - self._my_wins > 10:
+            return self.rng.choice(MOVES)
+
+        # Generate all predictions
+        best_score = -999
+        best_pred = -1
+        for mi in range(self._n_meta):
+            for li in range(min(len(self._opp_hist), self._max_len)):
+                pred = self._predict_opp(mi, li + 1)
+                self._predictions[mi, li] = pred
+                if pred >= 0 and self._scores[mi, li] > best_score:
+                    best_score = self._scores[mi, li]
+                    best_pred = pred
+
+        if best_pred >= 0 and best_score > 0:
+            return self._i2m[(best_pred + 1) % 3]
+
+        # Fallback: decayed frequency counter
+        if len(self._opp_hist) > 3:
+            freq = _np.zeros(3)
+            decay = 0.9
+            w = 1.0
+            for o in reversed(self._opp_hist):
+                freq[o] += w
+                w *= decay
+            return self._i2m[(int(_np.argmax(freq)) + 1) % 3]
+
+        return self.rng.choice(MOVES)
+
+
+# ---------------------------------------------------------------------------
+# 78: Bayes Ensemble — Bayesian model averaging over 12 predictors
+# ---------------------------------------------------------------------------
+
+class BayesEnsemble(Algorithm):
+    """Bayesian model averaging over 12 diverse predictors.
+
+    Maintains posterior weights over predictors using Bayes' rule with
+    likelihood = P(opponent_move | predictor). Each predictor outputs a
+    probability distribution over opponent's next move.
+
+    Predictors:
+    0: Uniform (baseline)
+    1-3: Frequency with decay (alpha=0.5, 0.8, 0.95)
+    4-6: Order-1 Markov (conditioned on opp, my, pair last move)
+    7: Order-2 Markov (opp last 2)
+    8: De Bruijn sequence detection
+    9: Streak continuation predictor
+    10: Anti-pattern (models opponent modeling us)
+    11: Win/lose/draw conditional predictor
+
+    Combined prediction drives counter-move selection.
+    """
+    name = "Bayes Ensemble"
+
+    def reset(self):
+        self._n_pred = 12
+        self._log_weights = _np.zeros(self._n_pred)  # log posteriors
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._opp_hist = []
+        self._my_hist = []
+        # Predictor state
+        self._freq = [_np.ones(3) / 3 for _ in range(3)]  # 3 decay rates
+        self._trans_opp = _np.ones((3, 3))  # P(next|opp_last)
+        self._trans_my = _np.ones((3, 3))   # P(next|my_last)
+        self._trans_pair = _np.ones((9, 3))  # P(next|pair)
+        self._trans_opp2 = _np.ones((9, 3))  # P(next|opp_last_2)
+        self._wld_trans = _np.ones((3, 3))   # P(next|outcome)
+        self._streak_len = 0
+        self._streak_move = -1
+        self._my_wins = 0
+        self._opp_wins = 0
+
+    def set_match_context(self, opponent_name, opponent_history):
+        # Use tournament data to bias priors
+        if opponent_history:
+            wins = sum(1 for m in opponent_history if m.get('result') == 'win')
+            wr = wins / max(len(opponent_history), 1)
+            if wr > 0.65:
+                # Strong opponent — boost uniform predictor
+                self._log_weights[0] += 2.0
+            elif wr < 0.3:
+                # Weak — boost exploitation predictors
+                self._log_weights[1] += 1.0
+                self._log_weights[4] += 1.0
+
+    def _get_predictions(self, round_num):
+        """Get probability distributions from all 12 predictors."""
+        preds = _np.ones((self._n_pred, 3)) / 3  # default uniform
+
+        # 0: Uniform
+        # (already set)
+
+        # 1-3: Decayed frequency
+        for i, alpha in enumerate([0.5, 0.8, 0.95]):
+            if self._opp_hist:
+                f = _np.ones(3) * 0.01
+                w = 1.0
+                for o in reversed(self._opp_hist):
+                    f[o] += w
+                    w *= alpha
+                preds[1 + i] = f / f.sum()
+
+        # 4: Markov on opp last move
+        if self._opp_hist:
+            last = self._opp_hist[-1]
+            row = self._trans_opp[last]
+            preds[4] = row / row.sum()
+
+        # 5: Markov on my last move
+        if self._my_hist:
+            last = self._my_hist[-1]
+            row = self._trans_my[last]
+            preds[5] = row / row.sum()
+
+        # 6: Markov on pair
+        if self._opp_hist and self._my_hist:
+            pair = self._my_hist[-1] * 3 + self._opp_hist[-1]
+            row = self._trans_pair[pair]
+            preds[6] = row / row.sum()
+
+        # 7: Order-2 Markov on opp
+        if len(self._opp_hist) >= 2:
+            state = self._opp_hist[-2] * 3 + self._opp_hist[-1]
+            row = self._trans_opp2[state]
+            preds[7] = row / row.sum()
+
+        # 8: De Bruijn / cycle detection
+        if len(self._opp_hist) >= 6:
+            for period in [2, 3, 4]:
+                if len(self._opp_hist) >= period * 2:
+                    recent = self._opp_hist[-period:]
+                    prev = self._opp_hist[-period*2:-period]
+                    if recent == prev:
+                        next_move = self._opp_hist[-period]
+                        preds[8] = _np.array([0.05, 0.05, 0.05])
+                        preds[8][next_move] = 0.9
+                        break
+
+        # 9: Streak continuation
+        if self._streak_len >= 2 and self._streak_move >= 0:
+            preds[9] = _np.array([0.15, 0.15, 0.15])
+            preds[9][self._streak_move] = 0.7
+
+        # 10: Anti-pattern (opponent models our frequency)
+        if self._my_hist and len(self._my_hist) > 5:
+            my_freq = _np.zeros(3)
+            for m in self._my_hist:
+                my_freq[m] += 1
+            our_most = int(_np.argmax(my_freq))
+            # Opponent counters our most → predict their counter
+            their_counter = (our_most + 1) % 3
+            preds[10] = _np.array([0.2, 0.2, 0.2])
+            preds[10][their_counter] = 0.6
+
+        # 11: WLD conditional
+        if self._my_hist and self._opp_hist:
+            m = self._my_hist[-1]
+            o = self._opp_hist[-1]
+            if (m - o) % 3 == 1:
+                outcome = 0  # we won
+            elif (o - m) % 3 == 1:
+                outcome = 1  # we lost
+            else:
+                outcome = 2  # draw
+            row = self._wld_trans[outcome]
+            preds[11] = row / row.sum()
+
+        return preds
+
+    def choose(self, round_num, my_history, opp_history):
+        # Update state
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o = self._m2i[opp_history[-1]]
+
+            # Bayesian update: log_weight += log P(o | predictor)
+            if round_num > 0:
+                preds = self._get_predictions(round_num - 1)
+                for pi in range(self._n_pred):
+                    self._log_weights[pi] += _np.log(max(preds[pi][o], 1e-10))
+                # Normalize to prevent overflow
+                self._log_weights -= self._log_weights.max()
+
+            # Update predictor state
+            self._opp_hist.append(o)
+            self._my_hist.append(m)
+
+            if o >= 0:
+                if len(self._opp_hist) >= 2:
+                    prev_o = self._opp_hist[-2]
+                    self._trans_opp[prev_o][o] += 1
+                if len(self._my_hist) >= 2:
+                    prev_m = self._my_hist[-2]
+                    self._trans_my[prev_m][o] += 1
+                if len(self._opp_hist) >= 2 and len(self._my_hist) >= 2:
+                    pair = self._my_hist[-2] * 3 + self._opp_hist[-2]
+                    self._trans_pair[pair][o] += 1
+                if len(self._opp_hist) >= 3:
+                    state = self._opp_hist[-3] * 3 + self._opp_hist[-2]
+                    self._trans_opp2[state][o] += 1
+
+                # Outcome
+                if (m - o) % 3 == 1:
+                    self._wld_trans[0][o] += 1
+                    self._my_wins += 1
+                elif (o - m) % 3 == 1:
+                    self._wld_trans[1][o] += 1
+                    self._opp_wins += 1
+                else:
+                    self._wld_trans[2][o] += 1
+
+            # Streak
+            if self._opp_hist and len(self._opp_hist) >= 2:
+                if self._opp_hist[-1] == self._opp_hist[-2]:
+                    self._streak_len += 1
+                    self._streak_move = self._opp_hist[-1]
+                else:
+                    self._streak_len = 0
+                    self._streak_move = self._opp_hist[-1]
+
+        # First 2 rounds: random
+        if round_num < 2:
+            return self.rng.choice(MOVES)
+
+        # If losing badly → Nash
+        if round_num > 20 and self._opp_wins - self._my_wins > 10:
+            return self.rng.choice(MOVES)
+
+        # Get predictions and weight them
+        preds = self._get_predictions(round_num)
+        weights = _np.exp(self._log_weights - self._log_weights.max())
+        weights /= weights.sum()
+
+        # Bayesian model average
+        combined = _np.zeros(3)
+        for pi in range(self._n_pred):
+            combined += weights[pi] * preds[pi]
+        combined /= combined.sum()
+
+        # Counter predicted move
+        predicted = int(_np.argmax(combined))
+        confidence = combined[predicted]
+
+        # If low confidence, add noise
+        if confidence < 0.4:
+            if self.rng.random() < 0.3:
+                return self.rng.choice(MOVES)
+
+        return self._i2m[(predicted + 1) % 3]
+
+
+# ---------------------------------------------------------------------------
+# 79: Geometry Bot — anti-rotation metastrategy (dllu.net inspired)
+# ---------------------------------------------------------------------------
+
+class GeometryBot(Algorithm):
+    """Anti-rotation with Boltzmann counters and 6-strategy rotation layer.
+
+    From dllu.net's analysis + RPSContest winners. Models the opponent as
+    choosing a rotation of their/our last move. Maintains 6 predictors:
+
+    R+0, R+1, R+2: Opponent rotates THEIR last move by 0/1/2
+    A+0, A+1, A+2: Opponent rotates OUR last move by 0/1/2
+
+    Uses Boltzmann (softmax) scoring with exponential decay to weight
+    predictors. Then applies its OWN anti-rotation layer on top.
+    """
+    name = "Geometry Bot"
+
+    def reset(self):
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._opp_last = -1
+        self._my_last = -1
+        # 6 rotation predictors + 6 anti-rotation
+        self._n_pred = 12
+        self._scores = _np.zeros(self._n_pred)
+        self._decay = 0.9
+        self._temperature = 0.5
+        self._my_wins = 0
+        self._opp_wins = 0
+
+    def set_match_context(self, opponent_name, opponent_history):
+        pass
+
+    def _get_predictions(self):
+        """Get predicted opponent move from each strategy."""
+        preds = _np.full(self._n_pred, -1)
+        if self._opp_last >= 0:
+            # R+0, R+1, R+2: they play rotation of their last
+            for r in range(3):
+                preds[r] = (self._opp_last + r) % 3
+        if self._my_last >= 0:
+            # A+0, A+1, A+2: they play rotation of our last
+            for r in range(3):
+                preds[3 + r] = (self._my_last + r) % 3
+        # Anti-rotation: they counter our rotation predictors
+        if self._my_last >= 0 and self._opp_last >= 0:
+            for r in range(3):
+                # They know we'd predict R+r, so they play counter
+                pred_r = (self._opp_last + r) % 3
+                our_counter = (pred_r + 1) % 3
+                preds[6 + r] = (our_counter + 1) % 3  # beat our counter
+            for r in range(3):
+                pred_a = (self._my_last + r) % 3
+                our_counter = (pred_a + 1) % 3
+                preds[9 + r] = (our_counter + 1) % 3
+        return preds
+
+    def choose(self, round_num, my_history, opp_history):
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o = self._m2i[opp_history[-1]]
+
+            if (m - o) % 3 == 1:
+                self._my_wins += 1
+            elif (o - m) % 3 == 1:
+                self._opp_wins += 1
+
+            # Score predictors
+            preds = self._get_predictions()
+            for i in range(self._n_pred):
+                if preds[i] >= 0:
+                    if preds[i] == o:
+                        self._scores[i] += 1.0
+                    elif (preds[i] + 1) % 3 == o:
+                        self._scores[i] -= 0.7
+                    self._scores[i] *= self._decay
+
+            self._opp_last = o
+            self._my_last = m
+
+        if round_num < 2:
+            if my_history:
+                self._my_last = self._m2i[my_history[-1]]
+            return self.rng.choice(MOVES)
+
+        # If losing badly → Nash
+        if round_num > 20 and self._opp_wins - self._my_wins > 10:
+            return self.rng.choice(MOVES)
+
+        # Boltzmann selection
+        preds = self._get_predictions()
+        valid = preds >= 0
+        if not _np.any(valid):
+            return self.rng.choice(MOVES)
+
+        valid_scores = self._scores[valid]
+        valid_preds = preds[valid]
+
+        # Softmax
+        temp = self._temperature
+        exp_s = _np.exp((valid_scores - valid_scores.max()) / max(temp, 0.01))
+        probs = exp_s / exp_s.sum()
+
+        # Weighted prediction
+        opp_probs = _np.zeros(3)
+        for pr, prob in zip(valid_preds, probs):
+            opp_probs[int(pr)] += prob
+
+        predicted = int(_np.argmax(opp_probs))
+        confidence = opp_probs[predicted]
+
+        if confidence < 0.35:
+            return self.rng.choice(MOVES)
+
+        return self._i2m[(predicted + 1) % 3]
+
+
+# ---------------------------------------------------------------------------
+# 80: PPO Agent — pre-trained policy gradient (numpy)
+# ---------------------------------------------------------------------------
+
+class PhantomEnsemble(Algorithm):
+    """Mega-ensemble with 60+ predictors and Hedge meta-learning.
+
+    Combines EVERY proven approach into one algorithm:
+    - History matching at depths 1-15 on (opp, my, combined) = 45 predictors
+    - Markov chains order 1-3 on (opp, pair) = 6 predictors
+    - Rotation/anti-rotation = 6 predictors
+    - WLD conditional = 1 predictor
+    - Anti-frequency = 1 predictor
+    - Cycle detection = 1 predictor
+
+    Total: ~60 predictors tracked with exponential decay scoring.
+    Selection via Hedge (multiplicative weights) algorithm.
+
+    Also uses tournament context to identify opponent archetype
+    and pre-bias predictor weights.
+    """
+    name = "Phantom Ensemble"
+
+    def reset(self):
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._opp_hist = []
+        self._my_hist = []
+        self._my_wins = 0
+        self._opp_wins = 0
+
+        # === Predictor pools ===
+        # Group A: History matching on opp history (depths 1-15)
+        self._hm_depths = 15
+        # Group B: History matching on my history (depths 1-15)
+        # Group C: History matching on combined (depths 1-15)
+        # = 45 history matchers
+        self._n_hm = self._hm_depths * 3
+
+        # Group D: Markov
+        self._trans_opp1 = _np.ones((3, 3))
+        self._trans_opp2 = _np.ones((9, 3))
+        self._trans_opp3 = _np.ones((27, 3))
+        self._trans_pair1 = _np.ones((9, 3))
+        self._trans_pair2 = _np.ones((81, 3))
+        self._trans_my1 = _np.ones((3, 3))
+        self._n_markov = 6
+
+        # Group E: Rotation (3 rotation + 3 anti-rotation)
+        self._n_rotation = 6
+
+        # Group F: Special (anti-freq, WLD, cycle)
+        self._wld_trans = _np.ones((3, 3))
+        self._n_special = 3
+
+        self._n_total = self._n_hm + self._n_markov + self._n_rotation + self._n_special
+        # = 45 + 6 + 6 + 3 = 60
+
+        self._scores = _np.zeros(self._n_total)
+        self._predictions = _np.full(self._n_total, -1, dtype=int)
+        self._decay = 0.94
+        self._opponent_name = ""
+        self._opponent_history = []
+
+    def set_match_context(self, opponent_name, opponent_history):
+        self._opponent_name = opponent_name
+        self._opponent_history = opponent_history
+        if opponent_history:
+            # Analyze tournament results to pre-bias predictors
+            wins = sum(1 for r in opponent_history if r.get('result') == 'win')
+            losses = sum(1 for r in opponent_history if r.get('result') == 'loss')
+            wr = wins / max(len(opponent_history), 1)
+
+            # Check scores for patterns
+            opp_round_wins = 0
+            opp_round_losses = 0
+            for rec in opponent_history:
+                score_str = rec.get('score', '')
+                if '-' in score_str:
+                    parts = score_str.split('-')
+                    try:
+                        opp_round_wins += int(parts[0])
+                        opp_round_losses += int(parts[1])
+                    except (ValueError, IndexError):
+                        pass
+
+            if wr > 0.7:
+                # Very strong → boost Nash/rotation predictors, penalize simple
+                base = self._n_hm + self._n_markov
+                for i in range(self._n_rotation):
+                    self._scores[base + i] += 2.0
+            elif wr < 0.3:
+                # Weak → boost exploitation (history matching + Markov)
+                for i in range(min(10, self._n_hm)):
+                    self._scores[i] += 1.5
+                for i in range(self._n_markov):
+                    self._scores[self._n_hm + i] += 1.5
+
+            # Name-based heuristics
+            name_lower = opponent_name.lower()
+            if any(w in name_lower for w in ['always', 'constant', 'fixed']):
+                # Boost frequency-based predictors
+                for i in range(self._n_markov):
+                    self._scores[self._n_hm + i] += 3.0
+            elif any(w in name_lower for w in ['random', 'chaos', 'noise']):
+                # Don't bother predicting — slight Nash bias
+                pass
+            elif any(w in name_lower for w in ['pattern', 'markov', 'sequence']):
+                # Boost history matching
+                for i in range(self._n_hm):
+                    self._scores[i] += 1.0
+
+    def _find_match(self, history, length):
+        """Find last matching suffix of given length."""
+        n = len(history)
+        if n <= length:
+            return -1
+        pattern = history[-length:]
+        for i in range(n - length - 1, -1, -1):
+            if history[i:i+length] == pattern:
+                pos = i + length
+                if pos < n:
+                    return history[pos]
+        return -1
+
+    def _generate_predictions(self):
+        """Generate predictions from all 60 predictors."""
+        oh = self._opp_hist
+        mh = self._my_hist
+        preds = self._predictions
+        preds[:] = -1
+
+        # Group A: History match on opp (indices 0..14)
+        for d in range(1, self._hm_depths + 1):
+            if len(oh) > d:
+                preds[d - 1] = self._find_match(oh, d)
+
+        # Group B: History match on my (indices 15..29)
+        for d in range(1, self._hm_depths + 1):
+            if len(mh) > d and len(oh) > d:
+                match = self._find_match(mh, d)
+                if match >= 0:
+                    # Find what opponent did at that position
+                    # Use the opp_hist at the same time step
+                    for i in range(len(mh) - d - 1, -1, -1):
+                        if mh[i:i+d] == mh[-d:]:
+                            pos = i + d
+                            if pos < len(oh):
+                                preds[self._hm_depths + d - 1] = oh[pos]
+                            break
+
+        # Group C: Combined history match (indices 30..44)
+        if oh and mh:
+            combined = [m * 3 + o for m, o in zip(mh, oh)]
+            for d in range(1, self._hm_depths + 1):
+                if len(combined) > d:
+                    match = self._find_match(combined, d)
+                    if match >= 0:
+                        # Need the opp move at that position
+                        for i in range(len(combined) - d - 1, -1, -1):
+                            if combined[i:i+d] == combined[-d:]:
+                                pos = i + d
+                                if pos < len(oh):
+                                    preds[2 * self._hm_depths + d - 1] = oh[pos]
+                                break
+
+        base = self._n_hm  # 45
+
+        # Group D: Markov chains (indices 45..50)
+        if oh:
+            # Order-1 opp
+            row = self._trans_opp1[oh[-1]]
+            preds[base] = int(_np.argmax(row))
+            # Order-1 my conditioned
+            row = self._trans_my1[mh[-1]] if mh else _np.ones(3)
+            preds[base + 3] = int(_np.argmax(row))
+
+        if len(oh) >= 2:
+            state = oh[-2] * 3 + oh[-1]
+            row = self._trans_opp2[state]
+            preds[base + 1] = int(_np.argmax(row))
+            # Pair
+            if mh:
+                pair = mh[-1] * 3 + oh[-1]
+                row = self._trans_pair1[pair]
+                preds[base + 4] = int(_np.argmax(row))
+
+        if len(oh) >= 3:
+            state = oh[-3] * 9 + oh[-2] * 3 + oh[-1]
+            row = self._trans_opp3[state]
+            preds[base + 2] = int(_np.argmax(row))
+            if len(mh) >= 2:
+                pair = (mh[-2] * 3 + oh[-2]) * 9 + (mh[-1] * 3 + oh[-1])
+                if pair < 81:
+                    row = self._trans_pair2[pair]
+                    preds[base + 5] = int(_np.argmax(row))
+
+        base += self._n_markov  # 51
+
+        # Group E: Rotation (indices 51..56)
+        if oh:
+            for r in range(3):
+                preds[base + r] = (oh[-1] + r) % 3
+        if mh:
+            for r in range(3):
+                preds[base + 3 + r] = (mh[-1] + r) % 3
+
+        base += self._n_rotation  # 57
+
+        # Group F: Special (indices 57..59)
+        # Anti-frequency
+        if mh and len(mh) > 5:
+            my_freq = _np.zeros(3)
+            for m in mh:
+                my_freq[m] += 1
+            preds[base] = (int(_np.argmax(my_freq)) + 1) % 3
+
+        # WLD conditional
+        if mh and oh:
+            m, o = mh[-1], oh[-1]
+            if (m - o) % 3 == 1:
+                outcome = 0
+            elif (o - m) % 3 == 1:
+                outcome = 1
+            else:
+                outcome = 2
+            row = self._wld_trans[outcome]
+            preds[base + 1] = int(_np.argmax(row))
+
+        # Cycle detection
+        if len(oh) >= 6:
+            for period in [2, 3, 4, 5]:
+                if len(oh) >= period * 2:
+                    if oh[-period:] == oh[-period*2:-period]:
+                        preds[base + 2] = oh[-period]
+                        break
+
+        return preds
+
+    def choose(self, round_num, my_history, opp_history):
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o = self._m2i[opp_history[-1]]
+            self._my_hist.append(m)
+            self._opp_hist.append(o)
+
+            if (m - o) % 3 == 1:
+                self._my_wins += 1
+            elif (o - m) % 3 == 1:
+                self._opp_wins += 1
+
+            # Score all predictors
+            for i in range(self._n_total):
+                pred = self._predictions[i]
+                if pred >= 0:
+                    if pred == o:
+                        self._scores[i] += 1.0
+                    elif (pred + 1) % 3 == o:
+                        self._scores[i] -= 0.5
+                    self._scores[i] *= self._decay
+
+            # Update Markov tables
+            if len(self._opp_hist) >= 2:
+                prev = self._opp_hist[-2]
+                self._trans_opp1[prev][o] += 1
+                if self._my_hist:
+                    self._trans_my1[self._my_hist[-2]][o] += 1
+                    pair = self._my_hist[-2] * 3 + prev
+                    self._trans_pair1[pair][o] += 1
+            if len(self._opp_hist) >= 3:
+                state = self._opp_hist[-3] * 3 + self._opp_hist[-2]
+                self._trans_opp2[state][o] += 1
+            if len(self._opp_hist) >= 4:
+                state = self._opp_hist[-4] * 9 + self._opp_hist[-3] * 3 + self._opp_hist[-2]
+                self._trans_opp3[state][o] += 1
+                if len(self._my_hist) >= 3:
+                    pair = (self._my_hist[-3] * 3 + self._opp_hist[-3]) * 9 + (self._my_hist[-2] * 3 + self._opp_hist[-2])
+                    if pair < 81:
+                        self._trans_pair2[pair][o] += 1
+
+            # WLD
+            if (m - o) % 3 == 1:
+                self._wld_trans[0][o] += 1
+            elif (o - m) % 3 == 1:
+                self._wld_trans[1][o] += 1
+            else:
+                self._wld_trans[2][o] += 1
+
+        # First round: random
+        if round_num < 1:
+            return self.rng.choice(MOVES)
+
+        # Safety: if losing badly, go Nash
+        if round_num > 20 and self._opp_wins - self._my_wins > 12:
+            return self.rng.choice(MOVES)
+
+        # Generate all predictions
+        preds = self._generate_predictions()
+
+        # Find best predictor(s)
+        valid_mask = preds >= 0
+        if not _np.any(valid_mask):
+            return self.rng.choice(MOVES)
+
+        valid_scores = self._scores[valid_mask]
+        valid_preds = preds[valid_mask]
+
+        # Softmax over scores (temperature = 0.3 for sharp selection)
+        temp = 0.3
+        centered = (valid_scores - valid_scores.max()) / max(temp, 0.01)
+        centered = _np.clip(centered, -20, 0)
+        weights = _np.exp(centered)
+        weights /= weights.sum()
+
+        # Weighted vote
+        opp_probs = _np.zeros(3)
+        for pred_val, w in zip(valid_preds, weights):
+            opp_probs[int(pred_val)] += w
+
+        predicted = int(_np.argmax(opp_probs))
+        confidence = opp_probs[predicted]
+
+        # Low confidence → add noise
+        if confidence < 0.38:
+            if self.rng.random() < 0.25:
+                return self.rng.choice(MOVES)
+
+        return self._i2m[(predicted + 1) % 3]
+
+
+# ---------------------------------------------------------------------------
+# 81: Decision Cascader — multi-depth prediction with cascading fallbacks
+# ---------------------------------------------------------------------------
+
+class DecisionCascader(Algorithm):
+    """Multi-depth predictor that cascades through analysis levels.
+
+    Level 0: Use longest matching history pattern
+    Level 1: If Level 0 fails, use Markov chain (order 1-3)
+    Level 2: If losing with current approach, try counter-strategy
+    Level 3: If still losing, model opponent as modeling US and double-counter
+    Level 4: Nash fallback
+
+    At each round, evaluates which depth level is currently winning and
+    uses that. Inspired by Greenberg's extension of Iocaine Powder.
+    """
+    name = "Decision Cascader"
+
+    def reset(self):
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._opp_hist = []
+        self._my_hist = []
+        self._n_levels = 5
+        self._level_scores = _np.zeros(self._n_levels)
+        self._level_preds = _np.full(self._n_levels, -1)
+        self._trans1 = _np.ones((3, 3))  # order-1
+        self._trans2 = _np.ones((9, 3))  # order-2
+        self._trans3 = _np.ones((27, 3))  # order-3
+        self._my_freq = _np.zeros(3)
+        self._opp_freq = _np.zeros(3)
+        self._my_wins = 0
+        self._opp_wins = 0
+
+    def set_match_context(self, opponent_name, opponent_history):
+        if opponent_history:
+            wins = sum(1 for m in opponent_history if m.get('result') == 'win')
+            wr = wins / max(len(opponent_history), 1)
+            if wr > 0.6:
+                # Strong opponent → boost higher levels
+                self._level_scores[3] += 2.0
+                self._level_scores[4] += 3.0
+            elif wr < 0.3:
+                self._level_scores[0] += 2.0
+                self._level_scores[1] += 2.0
+
+    def _history_match(self, hist, max_search=15):
+        """Find longest matching suffix in history."""
+        for length in range(min(max_search, len(hist) - 1), 0, -1):
+            pattern = hist[-length:]
+            for i in range(len(hist) - length - 1, -1, -1):
+                if hist[i:i+length] == pattern:
+                    pos = i + length
+                    if pos < len(hist):
+                        return hist[pos]
+        return -1
+
+    def _level_predict(self, level):
+        """Generate prediction for a given depth level."""
+        oh = self._opp_hist
+        mh = self._my_hist
+
+        if level == 0:
+            # Longest history match on opponent
+            return self._history_match(oh)
+
+        elif level == 1:
+            # Markov chain (best order)
+            best_confidence = 0
+            best_pred = -1
+            if oh:
+                # Order 1
+                row = self._trans1[oh[-1]]
+                total = row.sum()
+                if total > 3:
+                    pred = int(_np.argmax(row))
+                    conf = row[pred] / total
+                    if conf > best_confidence:
+                        best_confidence = conf
+                        best_pred = pred
+
+            if len(oh) >= 2:
+                state = oh[-2] * 3 + oh[-1]
+                row = self._trans2[state]
+                total = row.sum()
+                if total > 3:
+                    pred = int(_np.argmax(row))
+                    conf = row[pred] / total
+                    if conf > best_confidence:
+                        best_confidence = conf
+                        best_pred = pred
+
+            if len(oh) >= 3:
+                state = oh[-3] * 9 + oh[-2] * 3 + oh[-1]
+                row = self._trans3[state]
+                total = row.sum()
+                if total > 3:
+                    pred = int(_np.argmax(row))
+                    conf = row[pred] / total
+                    if conf > best_confidence:
+                        best_confidence = conf
+                        best_pred = pred
+
+            return best_pred
+
+        elif level == 2:
+            # Counter-strategy: opponent is counter-frequencing us
+            if self._my_freq.sum() > 3:
+                our_most = int(_np.argmax(self._my_freq))
+                return (our_most + 1) % 3  # they counter our most
+
+        elif level == 3:
+            # Double-counter: opponent models us modeling them
+            if self._opp_freq.sum() > 3:
+                opp_most = int(_np.argmax(self._opp_freq))
+                our_counter = (opp_most + 1) % 3
+                # They know we counter, so they play what beats that
+                their_counter = (our_counter + 1) % 3
+                return their_counter
+
+        elif level == 4:
+            # Nash
+            return self.rng.randint(0, 2)
+
+        return -1
+
+    def choose(self, round_num, my_history, opp_history):
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o = self._m2i[opp_history[-1]]
+            self._opp_hist.append(o)
+            self._my_hist.append(m)
+            self._opp_freq[o] += 1
+            self._my_freq[m] += 1
+
+            if (m - o) % 3 == 1:
+                self._my_wins += 1
+            elif (o - m) % 3 == 1:
+                self._opp_wins += 1
+
+            # Update Markov tables
+            if len(self._opp_hist) >= 2:
+                self._trans1[self._opp_hist[-2]][o] += 1
+            if len(self._opp_hist) >= 3:
+                state = self._opp_hist[-3] * 3 + self._opp_hist[-2]
+                self._trans2[state][o] += 1
+            if len(self._opp_hist) >= 4:
+                state = self._opp_hist[-4] * 9 + self._opp_hist[-3] * 3 + self._opp_hist[-2]
+                self._trans3[state][o] += 1
+
+            # Score levels
+            for lv in range(self._n_levels):
+                pred = self._level_preds[lv]
+                if pred >= 0:
+                    if pred == o:
+                        self._level_scores[lv] += 1.0
+                    else:
+                        self._level_scores[lv] -= 0.3
+                    self._level_scores[lv] *= 0.95
+
+        if round_num < 2:
+            return self.rng.choice(MOVES)
+
+        # Generate predictions and pick best level
+        for lv in range(self._n_levels):
+            self._level_preds[lv] = self._level_predict(lv)
+
+        best_level = int(_np.argmax(self._level_scores))
+        pred = self._level_preds[best_level]
+
+        if pred >= 0 and self._level_scores[best_level] > 0:
+            return self._i2m[(pred + 1) % 3]
+
+        # Cascade through levels
+        for lv in range(self._n_levels):
+            pred = self._level_preds[lv]
+            if pred >= 0:
+                return self._i2m[(pred + 1) % 3]
+
+        return self.rng.choice(MOVES)
+
 
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
+
 
 ALL_ALGORITHM_CLASSES = [
     # Baseline (1-20)
@@ -3817,6 +5621,12 @@ ALL_ALGORITHM_CLASSES = [
     QLearnerV5, ThompsonSamplerV5, UCBExplorerV5, GradientLearnerV5,
     # New-Field Algorithms (67-71)
     HiddenMarkovOracle, GeneticStrategist, PIDController, ChaosEngine, LevelKReasoner,
+    # Competition Meta-Algorithm (72)
+    TheHydra,
+    # Next-Gen Competition Algorithms (73-76)
+    TournamentScout, NeuralProphet, LSTMPredictor, MetaLearner,
+    # Elite Competition Algorithms (77-81)
+    HistoryMatcher, BayesEnsemble, GeometryBot, PhantomEnsemble, DecisionCascader,
 ]
 
 

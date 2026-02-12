@@ -7,7 +7,7 @@ import threading
 from flask import Flask, render_template, request, jsonify, Response
 
 from .algorithms import get_algorithm_by_name, get_all_algorithms, ALL_ALGORITHM_CLASSES
-from .tournament import head_to_head, one_vs_all, round_robin
+from .tournament import head_to_head, one_vs_all, round_robin, competition_round_robin
 from .stats import (
     compute_leaderboard,
     head_to_head_matrix,
@@ -296,6 +296,86 @@ def api_one_vs_all_stream():
                     "algo": algo_name,
                     "leaderboard": [e.to_dict() for e in leaderboard],
                     "matchups": matchups,
+                    "elapsed": elapsed,
+                }, event="done")
+                break
+            else:
+                yield _sse_event(item, event="progress")
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@app.route("/api/competition/stream")
+def api_competition_stream():
+    """SSE endpoint for competition tournament (sequential, with metadata)."""
+    rounds = request.args.get("rounds", 100, type=int)
+    seed = request.args.get("seed", None, type=int)
+
+    def generate():
+        progress_queue = queue.Queue()
+        start_time = time.time()
+        final_results = [None]
+
+        def on_match_done(completed, total, result):
+            elapsed = time.time() - start_time
+            if completed > 0:
+                eta = (elapsed / completed) * (total - completed)
+            else:
+                eta = 0
+            if result.a_wins > result.b_wins:
+                winner = result.algo_a_name
+            elif result.b_wins > result.a_wins:
+                winner = result.algo_b_name
+            else:
+                winner = "DRAW"
+            progress_queue.put({
+                "completed": completed,
+                "total": total,
+                "match": f"{result.algo_a_name} vs {result.algo_b_name}",
+                "winner": winner,
+                "a_wins": result.a_wins,
+                "b_wins": result.b_wins,
+                "elapsed": round(elapsed, 1),
+                "eta": round(eta, 1),
+                "pct": round(completed / total * 100, 1),
+            })
+
+        def run_comp():
+            algos = get_all_algorithms()
+            results = competition_round_robin(
+                algos, rounds=rounds, seed=seed,
+                on_match_done=on_match_done,
+            )
+            final_results[0] = results
+            progress_queue.put("DONE")
+
+        thread = threading.Thread(target=run_comp, daemon=True)
+        thread.start()
+
+        while True:
+            try:
+                item = progress_queue.get(timeout=60)
+            except queue.Empty:
+                yield ": keepalive\n\n"
+                continue
+
+            if item == "DONE":
+                results = final_results[0]
+                leaderboard = compute_leaderboard(results)
+                matrix = head_to_head_matrix(results)
+                elapsed = round(time.time() - start_time, 1)
+                yield _sse_event({
+                    "leaderboard": [e.to_dict() for e in leaderboard],
+                    "matrix": matrix,
+                    "total_matches": len(results),
                     "elapsed": elapsed,
                 }, event="done")
                 break

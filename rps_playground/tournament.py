@@ -163,3 +163,90 @@ def _run_parallel(
                 on_match_done(completed, total, result)
 
     return results  # type: ignore[return-value]
+
+
+# ---------------------------------------------------------------------------
+# Competition tournament (sequential, with metadata)
+# ---------------------------------------------------------------------------
+
+def competition_round_robin(
+    algos: Optional[list[Algorithm]] = None,
+    rounds: int = 100,
+    seed: Optional[int] = None,
+    on_match_done: Optional[Callable[[int, int, MatchResult], None]] = None,
+) -> list[MatchResult]:
+    """Competition round-robin — every algo plays every other with metadata.
+
+    Runs SEQUENTIALLY so that each algorithm can see its opponent's
+    prior tournament results before the match begins. After each match,
+    the tournament record is updated for both participants.
+
+    Each algorithm receives via set_match_context():
+        - opponent_name: str
+        - opponent_history: list of {opponent, result, score, rounds}
+
+    Args:
+        on_match_done: Optional callback(completed, total, result)
+    """
+    from .engine import run_match_with_context
+
+    if algos is None:
+        algos = get_all_algorithms()
+
+    # Tournament record: algo_name → list of past match results
+    records: dict[str, list[dict]] = {algo.name: [] for algo in algos}
+
+    # Build job list
+    jobs = []
+    match_idx = 0
+    for i in range(len(algos)):
+        for j in range(i + 1, len(algos)):
+            match_seed = (seed * 10000 + match_idx) if seed is not None else None
+            jobs.append((i, j, rounds, match_seed))
+            match_idx += 1
+
+    total = len(jobs)
+    results = []
+
+    for completed_idx, (i, j, rds, mseed) in enumerate(jobs):
+        algo_a = algos[i].__class__()
+        algo_b = algos[j].__class__()
+
+        # Pass tournament context
+        a_opp_history = records.get(algo_b.name, [])
+        b_opp_history = records.get(algo_a.name, [])
+
+        result = run_match_with_context(
+            algo_a, algo_b,
+            rounds=rds, seed=mseed,
+            record_moves=False,
+            a_tournament_history=a_opp_history,
+            b_tournament_history=b_opp_history,
+        )
+        results.append(result)
+
+        # Update tournament records for both participants
+        if result.a_wins > result.b_wins:
+            a_result, b_result = "win", "loss"
+        elif result.b_wins > result.a_wins:
+            a_result, b_result = "loss", "win"
+        else:
+            a_result, b_result = "draw", "draw"
+
+        records[result.algo_a_name].append({
+            "opponent": result.algo_b_name,
+            "result": a_result,
+            "score": f"{result.a_wins}-{result.b_wins}",
+            "rounds": rds,
+        })
+        records[result.algo_b_name].append({
+            "opponent": result.algo_a_name,
+            "result": b_result,
+            "score": f"{result.b_wins}-{result.a_wins}",
+            "rounds": rds,
+        })
+
+        if on_match_done:
+            on_match_done(completed_idx + 1, total, result)
+
+    return results

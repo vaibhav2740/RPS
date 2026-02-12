@@ -226,3 +226,98 @@ def run_match(
     result.draws = draws
     return result
 
+
+def run_match_with_context(
+    algo_a,
+    algo_b,
+    rounds: int = 1000,
+    seed: Optional[int] = None,
+    record_moves: bool = True,
+    a_tournament_history: Optional[list[dict]] = None,
+    b_tournament_history: Optional[list[dict]] = None,
+) -> MatchResult:
+    """Run a match with tournament context passed to algorithms.
+
+    Before the match, calls set_match_context() on each algorithm so they
+    know their opponent's name and prior tournament results.
+
+    Args:
+        a_tournament_history: Algorithm A's view of B's prior matches
+        b_tournament_history: Algorithm B's view of A's prior matches
+    """
+    # Set context before match (before reset is called in run_match)
+    if hasattr(algo_a, 'set_match_context'):
+        algo_a._pending_context = (algo_b.name, a_tournament_history or [])
+    if hasattr(algo_b, 'set_match_context'):
+        algo_b._pending_context = (algo_a.name, b_tournament_history or [])
+
+    # Run the match normally
+    master_rng = random.Random(seed)
+    algo_a_seed = master_rng.randint(0, 2**31)
+    algo_b_seed = master_rng.randint(0, 2**31)
+
+    algo_a.rng = random.Random(algo_a_seed)
+    algo_b.rng = random.Random(algo_b_seed)
+    algo_a.reset()
+    algo_b.reset()
+
+    # Now apply context AFTER reset
+    if hasattr(algo_a, '_pending_context'):
+        algo_a.set_match_context(*algo_a._pending_context)
+        del algo_a._pending_context
+    if hasattr(algo_b, '_pending_context'):
+        algo_b.set_match_context(*algo_b._pending_context)
+        del algo_b._pending_context
+
+    result = MatchResult(
+        algo_a_name=algo_a.name,
+        algo_b_name=algo_b.name,
+        rounds=rounds,
+    )
+
+    a_history: list[Move] = []
+    b_history: list[Move] = []
+    a_frozen = _FrozenHistory(a_history)
+    b_frozen = _FrozenHistory(b_history)
+    winner_table = _WINNER_TABLE
+    a_choose = algo_a.choose
+    b_choose = algo_b.choose
+    a_wins = 0
+    b_wins = 0
+    draws = 0
+
+    if record_moves:
+        a_moves_list = result.a_moves
+        b_moves_list = result.b_moves
+        for round_num in range(rounds):
+            move_a = a_choose(round_num, a_frozen, b_frozen)
+            move_b = b_choose(round_num, b_frozen, a_frozen)
+            outcome = winner_table[move_a, move_b]
+            if outcome == 1:
+                a_wins += 1
+            elif outcome == -1:
+                b_wins += 1
+            else:
+                draws += 1
+            a_history.append(move_a)
+            b_history.append(move_b)
+            a_moves_list.append(move_a)
+            b_moves_list.append(move_b)
+    else:
+        for round_num in range(rounds):
+            move_a = a_choose(round_num, a_frozen, b_frozen)
+            move_b = b_choose(round_num, b_frozen, a_frozen)
+            outcome = winner_table[move_a, move_b]
+            if outcome == 1:
+                a_wins += 1
+            elif outcome == -1:
+                b_wins += 1
+            else:
+                draws += 1
+            a_history.append(move_a)
+            b_history.append(move_b)
+
+    result.a_wins = a_wins
+    result.b_wins = b_wins
+    result.draws = draws
+    return result
