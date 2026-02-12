@@ -2,12 +2,15 @@
 
 import json
 import time
+import uuid
+import random
 import queue
 import threading
 from flask import Flask, render_template, request, jsonify, Response
 
 from .algorithms import get_algorithm_by_name, get_all_algorithms, ALL_ALGORITHM_CLASSES
 from .tournament import head_to_head, one_vs_all, round_robin, competition_round_robin
+from .engine import Move, determine_winner
 from .stats import (
     compute_leaderboard,
     head_to_head_matrix,
@@ -20,6 +23,14 @@ from .stats import (
 
 app = Flask(__name__)
 
+# ---------------------------------------------------------------------------
+# Arena session storage (in-memory, single-player local tool)
+# ---------------------------------------------------------------------------
+_arena_sessions: dict[str, dict] = {}
+_ARENA_MAX_SESSIONS = 100
+_MOVE_MAP = {"rock": Move.ROCK, "paper": Move.PAPER, "scissors": Move.SCISSORS}
+_MOVE_EMOJI = {Move.ROCK: "✊", Move.PAPER: "✋", Move.SCISSORS: "✌️"}
+
 
 @app.route("/")
 def index():
@@ -29,6 +40,135 @@ def index():
 @app.route("/api/algorithms")
 def api_algorithms():
     return jsonify([cls.name for cls in ALL_ALGORITHM_CLASSES])
+
+
+# ---------------------------------------------------------------------------
+# Arena endpoints — Human vs AI, round-by-round
+# ---------------------------------------------------------------------------
+
+@app.route("/api/arena/start", methods=["POST"])
+def api_arena_start():
+    """Create a new arena session with the chosen bot."""
+    # Evict oldest sessions if at capacity
+    while len(_arena_sessions) >= _ARENA_MAX_SESSIONS:
+        oldest_key = min(_arena_sessions, key=lambda k: _arena_sessions[k]["created"])
+        del _arena_sessions[oldest_key]
+
+    data = request.get_json()
+    bot_name = data.get("bot", "Always Rock")
+    bot = get_algorithm_by_name(bot_name)
+    bot.rng = random.Random()
+    bot.reset()
+
+    sid = uuid.uuid4().hex[:12]
+    _arena_sessions[sid] = {
+        "bot": bot,
+        "bot_name": bot_name,
+        "human_history": [],   # list[Move]
+        "bot_history": [],     # list[Move]
+        "rounds": [],          # [{human_move, bot_move, result}]
+        "wins": 0,
+        "losses": 0,
+        "draws": 0,
+        "streak": 0,           # positive = win streak, negative = loss streak
+        "created": time.time(),
+    }
+    return jsonify({"session_id": sid, "bot_name": bot_name})
+
+
+@app.route("/api/arena/play", methods=["POST"])
+def api_arena_play():
+    """Play one round: human submits a move, bot responds."""
+    data = request.get_json()
+    sid = data.get("session_id", "")
+    human_move_str = data.get("move", "").lower()
+
+    session = _arena_sessions.get(sid)
+    if not session:
+        return jsonify({"error": "Session not found. Start a new game."}), 404
+
+    if human_move_str not in _MOVE_MAP:
+        return jsonify({"error": f"Invalid move: {human_move_str}"}), 400
+
+    human_move = _MOVE_MAP[human_move_str]
+    round_num = len(session["human_history"])
+
+    # Bot chooses (bot sees: its own history as "my_history", human history as "opp_history")
+    bot_move = session["bot"].choose(
+        round_num,
+        session["bot_history"],    # bot's own past moves
+        session["human_history"],  # opponent (human) past moves
+    )
+
+    # Determine outcome from human's perspective
+    outcome = determine_winner(human_move, bot_move)  # 1=human wins, -1=bot wins, 0=draw
+
+    # Update histories
+    session["human_history"].append(human_move)
+    session["bot_history"].append(bot_move)
+
+    # Update score
+    if outcome == 1:
+        result_str = "win"
+        session["wins"] += 1
+        session["streak"] = max(session["streak"], 0) + 1
+    elif outcome == -1:
+        result_str = "loss"
+        session["losses"] += 1
+        session["streak"] = min(session["streak"], 0) - 1
+    else:
+        result_str = "draw"
+        session["draws"] += 1
+        session["streak"] = 0
+
+    round_data = {
+        "round": round_num + 1,
+        "human_move": human_move.value,
+        "bot_move": bot_move.value,
+        "human_emoji": _MOVE_EMOJI[human_move],
+        "bot_emoji": _MOVE_EMOJI[bot_move],
+        "result": result_str,
+    }
+    session["rounds"].append(round_data)
+
+    return jsonify({
+        **round_data,
+        "score": {
+            "wins": session["wins"],
+            "losses": session["losses"],
+            "draws": session["draws"],
+        },
+        "streak": session["streak"],
+        "total_rounds": round_num + 1,
+    })
+
+
+@app.route("/api/arena/reset", methods=["POST"])
+def api_arena_reset():
+    """Reset an arena session — same bot, fresh state."""
+    data = request.get_json()
+    sid = data.get("session_id", "")
+
+    session = _arena_sessions.get(sid)
+    if not session:
+        return jsonify({"error": "Session not found."}), 404
+
+    # Re-instantiate the bot
+    bot = get_algorithm_by_name(session["bot_name"])
+    bot.rng = random.Random()
+    bot.reset()
+
+    session["bot"] = bot
+    session["human_history"] = []
+    session["bot_history"] = []
+    session["rounds"] = []
+    session["wins"] = 0
+    session["losses"] = 0
+    session["draws"] = 0
+    session["streak"] = 0
+    session["created"] = time.time()
+
+    return jsonify({"status": "reset", "bot_name": session["bot_name"]})
 
 
 @app.route("/api/head-to-head", methods=["POST"])

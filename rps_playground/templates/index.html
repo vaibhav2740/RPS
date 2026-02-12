@@ -867,6 +867,262 @@
             color: var(--accent-cyan);
         }
 
+        /* ===== ARENA ===== */
+        .arena-setup {
+            display: flex;
+            gap: 16px;
+            align-items: end;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        .arena-setup .form-group { flex: 1; min-width: 200px; }
+        .arena-setup .btn { white-space: nowrap; }
+
+        .arena-status {
+            text-align: center;
+            padding: 12px 0 4px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .arena-status strong { color: var(--accent-cyan); }
+
+        .arena-board {
+            display: none;
+            animation: fadeSlideUp 0.5s ease;
+        }
+        .arena-board.visible { display: block; }
+
+        /* Move buttons */
+        .move-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 28px 0;
+        }
+        .move-btn {
+            width: 120px;
+            height: 130px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            border: 1.5px solid var(--border-glass);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.06);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .move-btn .move-emoji { font-size: 2.8rem; line-height: 1; transition: transform 0.25s ease; }
+        .move-btn .move-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            transition: color 0.25s;
+        }
+        .move-btn:hover {
+            transform: translateY(-6px) scale(1.06);
+            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 16px 40px rgba(0,0,0,0.3), 0 0 20px rgba(6,182,212,0.12), inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+        .move-btn:hover .move-emoji { transform: scale(1.12); }
+        .move-btn:hover .move-label { color: var(--text-primary); }
+        .move-btn:active {
+            transform: translateY(1px) scale(0.95);
+            transition-duration: 0.08s;
+        }
+        .move-btn[data-move="rock"]:hover { border-color: rgba(239,68,68,0.4); box-shadow: 0 16px 40px rgba(0,0,0,0.3), 0 0 24px rgba(239,68,68,0.1); }
+        .move-btn[data-move="paper"]:hover { border-color: rgba(6,182,212,0.4); box-shadow: 0 16px 40px rgba(0,0,0,0.3), 0 0 24px rgba(6,182,212,0.1); }
+        .move-btn[data-move="scissors"]:hover { border-color: rgba(139,92,246,0.4); box-shadow: 0 16px 40px rgba(0,0,0,0.3), 0 0 24px rgba(139,92,246,0.1); }
+        .move-btn.disabled { pointer-events: none; opacity: 0.4; }
+
+        /* Clash display */
+        .clash-area {
+            display: none;
+            text-align: center;
+            margin: 16px 0;
+            min-height: 100px;
+        }
+        .clash-area.visible { display: block; }
+        .clash-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 32px;
+        }
+        .clash-side {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+        .clash-emoji {
+            font-size: 3.2rem;
+            line-height: 1;
+        }
+        .clash-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+        .clash-vs {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: var(--text-muted);
+        }
+        .clash-result {
+            margin-top: 10px;
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+        .clash-result.win { color: var(--accent-green); }
+        .clash-result.loss { color: var(--accent-red); }
+        .clash-result.draw { color: var(--accent-yellow); }
+
+        /* Scoreboard */
+        .arena-scoreboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+        }
+        .score-tile {
+            text-align: center;
+            padding: 16px 12px;
+            background: rgba(0,0,0,0.2);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-glass);
+        }
+        .score-tile-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.6rem;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+        .score-tile-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+        .score-tile.wins .score-tile-value { color: var(--accent-green); }
+        .score-tile.losses .score-tile-value { color: var(--accent-red); }
+        .score-tile.draws .score-tile-value { color: var(--accent-yellow); }
+
+        .arena-streak {
+            text-align: center;
+            font-size: 0.88rem;
+            margin: 4px 0 16px;
+            min-height: 24px;
+        }
+        .streak-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 0.82rem;
+        }
+        .streak-badge.win-streak {
+            background: rgba(16,185,129,0.12);
+            color: var(--accent-green);
+            border: 1px solid rgba(16,185,129,0.2);
+        }
+        .streak-badge.loss-streak {
+            background: rgba(239,68,68,0.12);
+            color: var(--accent-red);
+            border: 1px solid rgba(239,68,68,0.2);
+        }
+
+        /* Round history */
+        .round-history {
+            max-height: 260px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.08) transparent;
+        }
+        .round-history::-webkit-scrollbar { width: 5px; }
+        .round-history::-webkit-scrollbar-track { background: transparent; }
+        .round-history::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .round-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.84rem;
+            transition: background 0.2s;
+        }
+        .round-row:hover { background: rgba(255,255,255,0.03); }
+        .round-row:nth-child(even) { background: rgba(255,255,255,0.01); }
+        .round-row:nth-child(even):hover { background: rgba(255,255,255,0.04); }
+        .round-num {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            min-width: 36px;
+        }
+        .round-moves {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1rem;
+        }
+        .round-moves-vs {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+        .round-outcome {
+            font-weight: 700;
+            font-size: 0.78rem;
+            min-width: 40px;
+            text-align: right;
+        }
+        .round-outcome.win { color: var(--accent-green); }
+        .round-outcome.loss { color: var(--accent-red); }
+        .round-outcome.draw { color: var(--accent-yellow); }
+
+        .arena-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 16px;
+        }
+        .btn-ghost {
+            padding: 10px 24px;
+            border: 1.5px solid var(--border-glass);
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .btn-ghost:hover {
+            border-color: rgba(255,255,255,0.2);
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.03);
+        }
+
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         /* ===== FOOTER ===== */
         footer {
             text-align: center;
@@ -887,6 +1143,10 @@
             .stat-col.center { border: none; padding: 0; }
             .card { padding: 20px; }
             .tabs { max-width: 100%; }
+            .move-btn { width: 100px; height: 110px; }
+            .move-btn .move-emoji { font-size: 2.2rem; }
+            .move-buttons { gap: 12px; }
+            .arena-scoreboard { gap: 8px; }
         }
     </style>
 </head>
@@ -939,6 +1199,10 @@
         <symbol id="ico-flask" viewBox="0 0 24 24">
             <path d="M9 3V1h6v2h-2v5.59l5 7.12V21H6v-5.29l5-7.12V3H9zm-1 15h8l-4-5.71L8 18z" fill="url(#rpsGrad)"/>
         </symbol>
+        <!-- Arena / Gamepad -->
+        <symbol id="ico-gamepad" viewBox="0 0 24 24">
+            <path d="M15 7.5V2H9v5.5l3 3 3-3zM7.5 9H2v6h5.5l3-3-3-3zM9 16.5V22h6v-5.5l-3-3-3 3zM16.5 9l-3 3 3 3H22V9h-5.5z" fill="url(#rpsGrad)"/>
+        </symbol>
     </svg>
 
     <div class="container">
@@ -979,6 +1243,9 @@
             <button class="tab-btn" data-tab="competition" id="tab-competition"><svg class="ico">
                     <use href="#ico-trophy" />
                 </svg> Competition</button>
+            <button class="tab-btn" data-tab="arena" id="tab-arena"><svg class="ico">
+                    <use href="#ico-gamepad" />
+                </svg> Arena</button>
         </nav>
 
         <!-- ===== HEAD-TO-HEAD TAB ===== -->
@@ -1263,6 +1530,92 @@
             </div>
         </div>
 
+        <!-- ===== ARENA TAB ===== -->
+        <div class="tab-content" id="content-arena">
+            <div class="card">
+                <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-gamepad"/></svg></span> Human vs AI Arena</div>
+                <div class="arena-setup">
+                    <div class="form-group">
+                        <label>Choose Your Opponent</label>
+                        <select id="arena-bot"></select>
+                    </div>
+                    <div class="form-group" style="flex:0;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary" id="arena-start-btn" onclick="arenaStart()"><svg class="ico"><use href="#ico-gamepad"/></svg> Enter Arena</button>
+                    </div>
+                </div>
+                <div class="arena-status" id="arena-status">Choose a bot and enter the arena to begin!</div>
+            </div>
+
+            <div class="arena-board" id="arena-board">
+                <div class="card">
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-swords"/></svg></span> <span id="arena-opponent-label">vs Bot</span></div>
+
+                    <!-- Move Buttons -->
+                    <div class="move-buttons" id="arena-move-btns">
+                        <button class="move-btn" data-move="rock" onclick="arenaPlay('rock')">
+                            <span class="move-emoji">✊</span>
+                            <span class="move-label">Rock</span>
+                        </button>
+                        <button class="move-btn" data-move="paper" onclick="arenaPlay('paper')">
+                            <span class="move-emoji">✋</span>
+                            <span class="move-label">Paper</span>
+                        </button>
+                        <button class="move-btn" data-move="scissors" onclick="arenaPlay('scissors')">
+                            <span class="move-emoji">✌️</span>
+                            <span class="move-label">Scissors</span>
+                        </button>
+                    </div>
+
+                    <!-- Clash Animation -->
+                    <div class="clash-area" id="arena-clash">
+                        <div class="clash-row">
+                            <div class="clash-side">
+                                <span class="clash-emoji" id="clash-human"></span>
+                                <span class="clash-label">You</span>
+                            </div>
+                            <span class="clash-vs">VS</span>
+                            <div class="clash-side">
+                                <span class="clash-emoji" id="clash-bot"></span>
+                                <span class="clash-label" id="clash-bot-name">Bot</span>
+                            </div>
+                        </div>
+                        <div class="clash-result" id="clash-result"></div>
+                    </div>
+
+                    <!-- Scoreboard -->
+                    <div class="arena-scoreboard">
+                        <div class="score-tile wins">
+                            <div class="score-tile-value" id="arena-wins">0</div>
+                            <div class="score-tile-label">Wins</div>
+                        </div>
+                        <div class="score-tile draws">
+                            <div class="score-tile-value" id="arena-draws">0</div>
+                            <div class="score-tile-label">Draws</div>
+                        </div>
+                        <div class="score-tile losses">
+                            <div class="score-tile-value" id="arena-losses">0</div>
+                            <div class="score-tile-label">Losses</div>
+                        </div>
+                    </div>
+                    <div class="arena-streak" id="arena-streak"></div>
+                </div>
+
+                <!-- Round History -->
+                <div class="card">
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-timer"/></svg></span> Round History <span style="font-weight:400;font-size:0.8rem;color:var(--text-muted);margin-left:auto" id="arena-round-count"></span></div>
+                    <div class="round-history" id="arena-history">
+                        <div style="text-align:center;color:var(--text-muted);padding:24px;font-size:0.85rem">Play a round to see the history...</div>
+                    </div>
+                </div>
+
+                <div class="arena-actions">
+                    <button class="btn-ghost" onclick="arenaReset()">🔄 Reset Match</button>
+                    <button class="btn-ghost" onclick="arenaChangeBotUI()">🤖 Change Bot</button>
+                </div>
+            </div>
+        </div>
+
         <footer>RPS Playground · Built with <svg class="ico" style="color:#06b6d4">
                 <use href="#ico-flask" />
             </svg> Python + Flask</footer>
@@ -1412,7 +1765,7 @@
         });
 
         function populateSelects() {
-            const selects = ['h2h-algo-a', 'h2h-algo-b', 'ova-algo'];
+            const selects = ['h2h-algo-a', 'h2h-algo-b', 'ova-algo', 'arena-bot'];
             selects.forEach(id => {
                 const sel = document.getElementById(id);
                 algorithms.forEach((name, i) => {
@@ -1759,6 +2112,211 @@
             const el = document.getElementById('comp-result');
             el.style.display = '';
             show('comp-result');
+        }
+
+        // ===== ARENA =====
+        let arenaSessionId = null;
+        let arenaPlaying = false;
+        const MOVE_EMOJI = { rock: '✊', paper: '✋', scissors: '✌️' };
+
+        async function arenaStart() {
+            const botName = document.getElementById('arena-bot').value;
+            const btn = document.getElementById('arena-start-btn');
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/arena/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bot: botName }),
+                });
+                const data = await res.json();
+                arenaSessionId = data.session_id;
+                arenaPlaying = true;
+
+                // Update UI
+                document.getElementById('arena-opponent-label').textContent = `You vs ${data.bot_name}`;
+                document.getElementById('clash-bot-name').textContent = data.bot_name;
+                document.getElementById('arena-status').innerHTML = `🎮 Arena active — playing against <strong>${data.bot_name}</strong>`;
+                document.getElementById('arena-wins').textContent = '0';
+                document.getElementById('arena-losses').textContent = '0';
+                document.getElementById('arena-draws').textContent = '0';
+                document.getElementById('arena-streak').innerHTML = '';
+                document.getElementById('arena-round-count').textContent = '';
+                document.getElementById('arena-history').innerHTML =
+                    '<div style="text-align:center;color:var(--text-muted);padding:24px;font-size:0.85rem">Play a round to see the history...</div>';
+
+                // Hide clash from previous game
+                document.getElementById('arena-clash').classList.remove('visible');
+
+                // Show the board
+                const board = document.getElementById('arena-board');
+                board.classList.add('visible');
+                if (G()) {
+                    gsap.fromTo(board, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' });
+                    gsap.fromTo('#arena-move-btns .move-btn',
+                        { opacity: 0, y: 15, scale: 0.9 },
+                        { opacity: 1, y: 0, scale: 1, duration: 0.4, stagger: 0.08, ease: 'back.out(1.4)', delay: 0.15 }
+                    );
+                }
+                setMoveBtnsEnabled(true);
+            } catch (e) {
+                console.error('Arena start error:', e);
+            }
+            btn.disabled = false;
+        }
+
+        function setMoveBtnsEnabled(enabled) {
+            document.querySelectorAll('.move-btn').forEach(b => {
+                if (enabled) b.classList.remove('disabled');
+                else b.classList.add('disabled');
+            });
+        }
+
+        async function arenaPlay(move) {
+            if (!arenaSessionId || !arenaPlaying) return;
+            setMoveBtnsEnabled(false);
+
+            try {
+                const res = await fetch('/api/arena/play', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: arenaSessionId, move }),
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    console.error(data.error);
+                    setMoveBtnsEnabled(true);
+                    return;
+                }
+
+                // Animate clash
+                showClash(data);
+
+                // Update scoreboard
+                animateCounter(document.getElementById('arena-wins'), data.score.wins);
+                animateCounter(document.getElementById('arena-losses'), data.score.losses);
+                animateCounter(document.getElementById('arena-draws'), data.score.draws);
+
+                // Streak display
+                updateStreak(data.streak);
+
+                // Round count
+                document.getElementById('arena-round-count').textContent = `Round ${data.total_rounds}`;
+
+                // Add to history
+                addRoundToHistory(data);
+
+                // Re-enable buttons after clash animation
+                setTimeout(() => setMoveBtnsEnabled(true), 500);
+            } catch (e) {
+                console.error('Arena play error:', e);
+                setMoveBtnsEnabled(true);
+            }
+        }
+
+        function showClash(data) {
+            const clashEl = document.getElementById('arena-clash');
+            const humanEmoji = document.getElementById('clash-human');
+            const botEmoji = document.getElementById('clash-bot');
+            const resultEl = document.getElementById('clash-result');
+
+            humanEmoji.textContent = data.human_emoji;
+            botEmoji.textContent = data.bot_emoji;
+
+            const resultMap = {
+                win: { text: 'You win! 🎉', cls: 'win' },
+                loss: { text: 'Bot wins!', cls: 'loss' },
+                draw: { text: 'Draw!', cls: 'draw' },
+            };
+            const r = resultMap[data.result];
+            resultEl.textContent = r.text;
+            resultEl.className = 'clash-result ' + r.cls;
+
+            clashEl.classList.add('visible');
+
+            if (G()) {
+                // Clash entrance animation
+                gsap.fromTo('#clash-human', { scale: 0, x: -40 }, { scale: 1, x: 0, duration: 0.35, ease: 'back.out(2)' });
+                gsap.fromTo('#clash-bot', { scale: 0, x: 40 }, { scale: 1, x: 0, duration: 0.35, ease: 'back.out(2)' });
+                gsap.fromTo(resultEl, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.3, delay: 0.2, ease: 'power2.out' });
+
+                // Win flash on scoreboard
+                const flashTarget = data.result === 'win' ? '.score-tile.wins'
+                    : data.result === 'loss' ? '.score-tile.losses' : '.score-tile.draws';
+                gsap.fromTo(flashTarget, { scale: 1.08 }, { scale: 1, duration: 0.4, ease: 'elastic.out(1, 0.5)' });
+            }
+        }
+
+        function updateStreak(streak) {
+            const el = document.getElementById('arena-streak');
+            if (streak === 0) {
+                el.innerHTML = '';
+                return;
+            }
+            const abs = Math.abs(streak);
+            if (streak > 0) {
+                const fire = abs >= 5 ? '🔥🔥' : abs >= 3 ? '🔥' : '✨';
+                el.innerHTML = `<span class="streak-badge win-streak">${fire} ${abs} win streak</span>`;
+            } else {
+                el.innerHTML = `<span class="streak-badge loss-streak">❄️ ${abs} loss streak</span>`;
+            }
+            if (G()) gsap.fromTo(el.firstChild, { scale: 1.15 }, { scale: 1, duration: 0.35, ease: 'back.out(2)' });
+        }
+
+        function addRoundToHistory(data) {
+            const historyEl = document.getElementById('arena-history');
+            // Clear placeholder on first round
+            if (data.round === 1) historyEl.innerHTML = '';
+
+            const row = document.createElement('div');
+            row.className = 'round-row';
+            row.innerHTML = `
+                <span class="round-num">#${data.round}</span>
+                <span class="round-moves">
+                    <span>${data.human_emoji}</span>
+                    <span class="round-moves-vs">VS</span>
+                    <span>${data.bot_emoji}</span>
+                </span>
+                <span class="round-outcome ${data.result}">${data.result.toUpperCase()}</span>
+            `;
+
+            // Prepend (newest on top)
+            historyEl.insertBefore(row, historyEl.firstChild);
+
+            if (G()) {
+                gsap.fromTo(row, { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.25, ease: 'power2.out' });
+            }
+        }
+
+        async function arenaReset() {
+            if (!arenaSessionId) return;
+            try {
+                await fetch('/api/arena/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: arenaSessionId }),
+                });
+                document.getElementById('arena-wins').textContent = '0';
+                document.getElementById('arena-losses').textContent = '0';
+                document.getElementById('arena-draws').textContent = '0';
+                document.getElementById('arena-streak').innerHTML = '';
+                document.getElementById('arena-round-count').textContent = '';
+                document.getElementById('arena-history').innerHTML =
+                    '<div style="text-align:center;color:var(--text-muted);padding:24px;font-size:0.85rem">Match reset — play a round!</div>';
+                document.getElementById('arena-clash').classList.remove('visible');
+                setMoveBtnsEnabled(true);
+            } catch (e) {
+                console.error('Arena reset error:', e);
+            }
+        }
+
+        function arenaChangeBotUI() {
+            arenaSessionId = null;
+            arenaPlaying = false;
+            document.getElementById('arena-board').classList.remove('visible');
+            document.getElementById('arena-status').textContent = 'Choose a bot and enter the arena to begin!';
         }
     </script>
 </body>
