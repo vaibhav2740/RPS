@@ -1,6 +1,6 @@
 # ✊✋✌️ RPS Playground — Algorithm Battle Arena
 
-A modular Rock-Paper-Scissors algorithm testing playground with **103 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
+A modular Rock-Paper-Scissors algorithm testing playground with **123 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
 
 ---
 
@@ -67,7 +67,7 @@ Run a single match between any two algorithms.
 
 ### 🏆 Tournament
 
-Full round-robin — every algorithm plays every other algorithm (5253 matches total with 103 bots).
+Full round-robin — every algorithm plays every other algorithm (7503 matches total with 123 bots).
 
 1. **Set rounds per match** and optional **seed**
 2. Click **🏆 RUN**
@@ -76,7 +76,7 @@ Full round-robin — every algorithm plays every other algorithm (5253 matches t
 
 ### 🤖 One vs All
 
-Test a single algorithm against the entire pool of 103 bots.
+Test a single algorithm against the entire pool of 123 bots.
 
 1. **Select your algorithm** from the dropdown
 2. **Set rounds** and optional **seed**
@@ -88,7 +88,7 @@ Test a single algorithm against the entire pool of 103 bots.
 
 ## 🤖 Algorithm Reference
 
-All 103 algorithms explained in detail.
+All 123 algorithms explained in detail.
 
 > **Notation used throughout:**
 > - `counter(X)` = the move that beats X. So `counter(Rock) = Paper`, `counter(Paper) = Scissors`, `counter(Scissors) = Rock`.
@@ -1514,6 +1514,342 @@ Upgraded Anti-Strategy Detector with **10 candidate strategy simulations** (cons
 
 ---
 
+### 77. PiBot 🥧
+**Type:** Mathematical · **Complexity:** Medium
+
+Follows the digits of Pi (π) to determine its move sequence. Since Pi is an irrational and normal number, its digits (in base 3 mapping) provide a sequence that is statistically indistinguishable from random noise but entirely deterministic.
+
+```python
+# Mapping: 1 -> Rock, 2 -> Paper, 3 -> Scissors, 4 -> Rock... (digit % 3)
+Moves: 3.1415926535... → [S, R, P, R, S, S, P, S, R, S, P...]
+```
+
+---
+
+### 78. Golden Ratio 🔱
+**Type:** Mathematical · **Complexity:** Medium
+
+Similar to PiBot, but follows the digits of the Golden Ratio (φ ≈ 1.618). It provides a different "flavor" of deterministic noise that can confuse pattern detectors expecting standard cycles.
+
+---
+
+### 79. Stock Broker 📈
+**Type:** Statistical · **Complexity:** High
+
+Applies financial market technical analysis to the opponent's move frequency. It treats the win-rate of moves like a stock price, using **Moving Averages (SMA)** and **Bollinger Bands** to detect when a move is "overbought" (overplayed) or "oversold" (underplayed) relative to its recent trend.
+
+---
+
+### 80. Quantum Collapse ⚛️
+**Type:** Probabilistic · **Complexity:** High
+
+Simulates a quantum superposition of moves. It maintains a "wavefunction" for its next choice that only collapses into a concrete move at the last possible nanosecond based on a complex entropy seed. Designed to be theoretically unreadable by predictive models.
+
+---
+
+### 81. Sound Wave 🔊
+**Type:** Signal Processing · **Complexity:** Very High
+
+Performs a **Fast Fourier Transform (FFT)** on the opponent's move history to identify the dominant frequencies of their cycles. If the opponent has a repeating pattern (even a very long one like 13 or 17 rounds), Sound Wave will see the peak in the frequency domain and predict the next "note."
+
+---
+
+### 82. Ackermann ♾️
+**Type:** Recursive · **Complexity:** High
+
+Uses the **Ackermann function**, a famous example of a computable function that is not primitive recursive, to generate its move sequence. The resulting sequence grows in complexity so rapidly that it appears chaotic to most modeling attempts.
+
+---
+
+### 83. Prime Hunter 🔢
+**Type:** Mathematical · **Complexity:** Medium
+
+Timing and move choices are driven by the sequence of **Prime Numbers**. It uses the gaps between primes to shift its strategy, making it difficult for bots that expect fixed-interval adaptations to track its behavior.
+
+---
+
+### 84. Compression Bot 🗜️
+**Type:** Information Theory · **Complexity:** High
+
+Uses an **LZW-style compression** dictionary to model the opponent. It treats moves like characters in a string and tries to find the shortest way to "compress" the opponent's history. The next move is predicted as the most likely "next byte" in the compressed stream.
+
+---
+
+### 85. Equilibrium Breaker ⚖️
+**Type:** Game Theory · **Complexity:** Medium
+
+Monitors the match's convergence toward the **Nash Equilibrium**. If it detects the opponent has settled into a perfectly stable (and thus predictable) 33/33/33 distribution, it deliberately injects "shocks" to the system to force the opponent into a readable deviation.
+
+---
+
+### 86. Delayed Mirror ⏳
+**Type:** Reactive · **Complexity:** Medium
+
+A tactical variant of Mirror Opponent. Instead of mirroring the last move, it mirrors moves from **3 to 7 rounds ago**, with the lag changing every 10 rounds. This creates a "shadow" of the opponent that is difficult to counter directly.
+
+---
+
+### 87. Gene Sequencer 🧬
+**Type:** Bioinformatics · **Complexity:** Very High
+
+Applies the **Smith-Waterman algorithm** (used for local sequence alignment in DNA) to the opponent's move history. It searches for the "closest genetic match" between the current round's lead-up and all previous segments found in the match.
+
+---
+
+### 88. Zodiac ♈
+**Type:** Cyclic · **Complexity:** Medium
+
+Maps moves to a long-period "celestial" cycle (12 "signs" of 10 rounds each). Each sign has a different fundamental bias (e.g., "Aries" favors aggressive counters, "Pisces" favors mirroring). Moves with a broad, slow rhythm that evades short-term detectors.
+
+---
+
+### 89. Neuro Evo 🧠
+**Type:** Neural Network · **Complexity:** High
+
+A minimal **evolving neural network**. It starts with random weights and uses a simple evolutionary strategy (perturbation and selection) to "breed" a set of weights that successfully predicts the current opponent.
+
+---
+
+### 90. Geometry Bot 📐
+**Type:** Anti-rotation · **Complexity:** High
+
+An advanced anti-rotation strategy inspired by top competitors at `dllu.net`. It models the opponent as choosing rotations of their/our last move and uses **Boltzmann (softmax) weighting** to track and counter their behavior.
+
+---
+
+### 91. Gambler's Fallacy 🎲
+**Type:** Psychology · **Complexity:** Medium
+
+Specifically targets the human tendency to believe that "a long streak of Paper means Rock is 'due'." It identifies when an opponent is falling for this fallacy and plays the move that exploits their "correction."
+
+---
+
+### 92. Nash Stabilizer 🧘
+**Type:** Game Theory · **Complexity:** Medium
+
+Plays a **smoothed Nash strategy**. It aims for the 33/33/33 equilibrium but applies subtle, slow-moving biases toward countering the opponent's most frequent move, ensuring it remains safe while slowly accumulating an edge.
+
+---
+
+### 93. Stubborn Loser 😤
+**Type:** Psychology · **Complexity:** Medium
+
+A psychological "bait" bot. When it loses, it **refuses to change its move** for several rounds. Many predictive bots interpret this as a bug or a naive strategy and over-commit to a counter, at which point Stubborn Loser abruptly switches to a hard counter.
+
+---
+
+### 94. Traitor Mirror 🗡️
+**Type:** Deception · **Complexity:** Medium
+
+Mirrors the opponent perfectly to induce a long sequence of draws. Once the opponent is lulled into a "cooperative" draw-streak, it suddenly "betrays" the mirror by playing the counter to the move the opponent is now reliably repeating.
+
+---
+
+### 95. Opponent Persona 👥
+**Type:** Machine Learning · **Complexity:** High
+
+Clusters the opponent into one of 5 "Personas" (**Aggressive, Defensive, Mirroring, Sequential, or Random**) by analyzing their last 30 rounds. It then applies a hard-coded "Anti-Persona" strategy for the detected archetype.
+
+---
+
+### 96. Exponential Backoff 📉
+**Type:** Algorithmic · **Complexity:** Medium
+
+When it detects its win rate dropping below 40%, it **exponentially slows down its adaptation rate**. This prevents it from "chasing the noise" against chaotic opponents and forces it to wait for a clear, stable signal before committing to a new strategy.
+
+---
+
+### 97. Pattern Breaker 🔨
+**Type:** Meta-Strategy · **Complexity:** Medium
+
+Every 15 rounds, this bot runs its own internal pattern detectors ON ITSELF. If it finds that it has become predictable (high internal entropy or repeating sequences), it deliberately plays the move that **breaks its own identified pattern**.
+
+---
+
+### 98. Sliding Window Vote 🗳️
+**Type:** Ensemble · **Complexity:** Medium
+
+A majority-rule bot that looks at three different time horizons: **Short (5 rounds), Medium (20 rounds), and Long (100 rounds)**. Each window "votes" on the most likely next opponent move based on frequency, and the majority wins.
+
+---
+
+### 99. Double Agent 🕵️‍♂️
+**Type:** Tactical · **Complexity:** Medium
+
+Switches its fundamental identity every 10 rounds. For one decade, it's a **Cooperative Mirror** (copying the opponent); for the next, it's an **Aggressive Counter** (beating the opponent). This ensures it keeps "flipping the board" on any adaptive model.
+
+---
+
+### 100. Counter Strike 💥
+**Type:** Targeted Counter · **Complexity:** Medium
+
+Specifically designed to defeat the **Win-Stay Lose-Shift (WSLS)** bot. It uses the logic of WSLS against it: if I won, the opponent will shift; if I lost, they will stay. By predicting this behavior perfectly, it turns WSLS into a 100% loss for the opponent.
+
+---
+
+### 101. The Hydra 🐉
+**Type:** Meta-Ensemble · **Complexity:** Very High
+
+A competition-optimized meta-algorithm with an **8-expert Hedge ensemble**. It wraps the `CompetitionBot` logic, featuring experts in frequency, Markov, N-gram, anti-patterns, and Bayesian transitions. Designed for fast convergence in 100-round tournament matches.
+
+---
+
+### 102. Tournament Scout 🔭
+**Type:** Meta-Analysis · **Complexity:** High
+
+Analyzes the opponent's **full tournament record** before the match begins. It classifies the opponent into one of 5 archetypes (**Static, Pattern, Adaptive, Random, or Weak**) and selects a tailored expert strategy. It also ignores "random-looking" opponents to play a safe Nash strategy.
+
+---
+
+### 103. Neural Prophet 🕸️
+**Type:** Deep Learning (MLP) · **Complexity:** Very High
+
+A real-time neural network built using pure `numpy`. It uses a **27-dim feature vector** (one-hot history, frequencies, WLD rates, and progress) fed into a **3-layer MLP (32-16-3 architecture)**. Trained online via Stochastic Gradient Descent (SGD) after every single round.
+
+---
+
+### 104. LSTM Predictor ♾️
+**Type:** Recurrent Neural Network · **Complexity:** Very High
+
+A pure-numpy implementation of an **LSTM (Long Short-Term Memory)** network. It processes the sequence of (my_move, opp_move) pairs through a 16-unit hidden state, allowing it to capture complex temporal dependencies and "rhythm changes" that fixed-window models miss.
+
+---
+
+### 105. Meta-Learner 🧠⚖️
+**Type:** Adaptive Ensemble · **Complexity:** High
+
+Maintains 6 sub-strategies (Frequency, Transition, Anti-Freq, Nash, Gradient, and WSLS). It uses the **Exp3 (Exploration-Exploitation with Exponential weights)** bandit algorithm to adapt its strategy weights, biasing its initial state based on the opponent's known tournament profile.
+
+---
+
+### 106. History Matcher 📖🔬
+**Type:** Advanced Pattern Matching · **Complexity:** Very High
+
+Inspired by the winner of the 1999 RoShamBo Programming Competition (**Iocaine Powder**). It searches for repeating patterns at multiple history lengths (1–20) and applies **6 meta-strategies** (P0, P1, P2 and their counters) to each level, scoring 120 predictors simultaneously.
+
+---
+
+### 107. Bayes Ensemble 🧮
+**Type:** Bayesian Model Averaging · **Complexity:** Very High
+
+Maintains **posterior weights** over 12 diverse predictors (Uniform, 3 Frequency types, 4 Markov types, De Bruijn, Streaks, Anti-Pattern, and WLD). It updates its belief in each predictor using Bayes' rule and plays a weighted average of their predictions.
+
+---
+
+### 108. Phantom Ensemble 👻
+**Type:** Mega-Ensemble · **Complexity:** Extreme
+
+A juggernaut tracking **60+ predictors** simultaneously. It combines everything: 45 history matchers, 6 Markov chains, 6 rotation/anti-rotation models, and 3 specialized predictors. Uses the **Hedge algorithm** for multiplicative weight updates and pre-biases weights based on opponent archetypes.
+
+---
+
+### 109. Decision Cascader 🌊
+**Type:** Layered Analysis · **Complexity:** High
+
+A multi-depth system that **cascades through fallback levels**. It prioritizes the longest matching history pattern; if that fails, it drops to Markov chains; if the bot is losing, it shifts to anti-modeling and double-countering, finally falling back to Nash.
+
+---
+
+### 110. The Time Traveler ⏳🛰️
+**Type:** Reservoir Computing · **Complexity:** Very High
+
+Uses an **Echo State Network (ESN)** approach. It projects history into a high-dimensional (40-dim) non-linear "reservoir" state space and trains a linear readout using **Online Ridge Regression**. Provides fast, non-linear adaptivity without the overhead of deep backpropagation.
+
+---
+
+### 111. The Collective 🤝
+**Type:** Boosting Ensemble · **Complexity:** High
+
+A boosting-inspired model that maintains weights for each past round. Unlike simple ensembles, it gives more "importance" to rounds where the ensemble previously failed, essentially **training its sub-predictors to cover each other's weaknesses**.
+
+---
+
+### 112. The Mirror World 🪞🌐
+**Type:** Recursive Simulation · **Complexity:** High
+
+Implements **Level-k Thinking** (Recursive Simulation). It simulates an opponent trying to predict you (Level 1), you countering their prediction (Level 2), and you countering their counter of your counter (Level 3). Dynamically stays one level deeper than the opponent.
+
+---
+
+### 113. The Omniscient 👁️
+**Type:** Ultimate Competition Model · **Complexity:** Extreme
+
+The most complex "v1" algorithm in the roster. Built on the Phantom Ensemble architecture but supercharged with **79 predictors**, including **order-4 Markov chains** and deep 20-round joint history matching. Features specialized heuristics for 10 different opponent categories.
+
+---
+
+### 114. The Doppelganger 👥
+**Type:** Change-Point Detection · **Complexity:** Very High
+
+Implements **Bayesian Online Change-Point Detection** (Adams & MacKay 2007). It constantly calculates the probability that the opponent has switched strategies mid-match. When a "regime shift" is detected, it discards stale data and resets its predictors to adapt instantly.
+
+---
+
+### 115. The Void 🌌
+**Type:** Information Theory / MI · **Complexity:** High
+
+Measures the **Mutual Information (MI)** between its own moves and the opponent's responses. High MI means the opponent is successfully "reading" the bot. In response, The Void injects entropy to become invisible, only returning to exploitation when its MI drops.
+
+---
+
+### 116. The Architect 🏗️
+**Type:** Multi-Armed Bandit · **Complexity:** High
+
+Uses **Thompson Sampling** to select from 12 COMPLETE STRATEGIES (not just moves) each round. Unlike ensemble voting, it commits fully to one strategy per round (e.g., "This round I am a Markov Predictor"), adapting its trust based on whole-strategy performance.
+
+---
+
+### 117. Super Omniscient 💎
+**Type:** Optimized Ensemble · **Complexity:** Extreme
+
+A refined version of The Omniscient with parameters (temperature, decay, history depth) optimized through thousands of self-play generations. It uses **CTW-inspired context windows** and conservative biasing to avoid over-committing to noisy signals.
+
+---
+
+### 118. Phoenix 🐦🔥
+**Type:** Streak Analytics · **Complexity:** Extreme
+
+Inherits from Super Omniscient but adds a layer of **Tilt Predictors**. These predictors activate when either player is on a winning or losing streak, capturing "tilt" (psychological frustration drift) that standard sequential models often ignore.
+
+---
+
+### 119. Mirror Opponent 🪞
+**Type:** Reactive · **Complexity:** Trivial
+
+The pure form of mirroring: it simply plays whatever move the opponent played in the previous round. Surprisingly effective against simple frequency trackers, as it forces them into a cycle of draws.
+
+---
+
+### 120. Contrarian 🙅‍♂️
+**Type:** Inverse Frequency · **Complexity:** Simple
+
+Tracks its own move history and deliberately plays the move it has used **least recently**. Since many adaptive bots expect you to repeat or follow a pattern, playing your least-frequent move maximizes your own entropy and unpredictability.
+
+---
+
+### 121. Pattern Detector 🔍
+**Type:** Sequential · **Complexity:** Simple
+
+A lightweight version of Historian. It scans the last 5 moves of history for any repeating patterns (from length 5 down to 2). If it finds a match, it counters the next move in that pattern; otherwise, it counters the opponent's last move.
+
+---
+
+### 122. The Singularity 🌌⚛️
+**Type:** Ultimate Fusion · **Complexity:** God-tier
+
+The peak of the hierarchy. It fuses **Super Omniscient** (pure prediction), **The Doppelganger** (change-point detection), and **The Void** (anti-modeling). It switches between aggressive exploitation and defensive entropy based on whether its moves are being successfully read.
+
+---
+
+### 123. The Black Hole 🌑
+**Type:** Recursive Anti-Prediction · **Complexity:** God-tier
+
+The "mirror image" of The Singularity. It combines **The Void** with **The Mirror World**. If it detects it is being modelled, it doesn't just go random — it uses recursive simulation to exploit the opponent's specific prediction of its own behavior.
+
+---
+
+
+
 ## 📊 Elo Rating System
 
 
@@ -1568,7 +1904,7 @@ ALL_ALGORITHM_CLASSES = [
 rps_playground/
 ├── __init__.py          # Package init
 ├── engine.py            # Core: Move enum, winner logic, MatchResult, run_match
-├── algorithms.py        # 76 algorithms + base class + registry
+├── algorithms.py        # 123 algorithms + base class + registry
 ├── tournament.py        # 3 modes: head-to-head, one-vs-all, round-robin
 ├── stats.py             # Elo system, leaderboard, H2H matrix, pretty-print
 ├── export.py            # JSON and CSV export
@@ -1587,7 +1923,7 @@ python3 -m rps_playground.main <command> [options]
 
 Commands:
   head-to-head   Mode 1: Algo A vs Algo B
-  one-vs-all     Mode 2: Custom algo vs all 62 bots
+  one-vs-all     Mode 2: Custom algo vs all 123 bots
   tournament     Mode 3: Full round-robin tournament
 
 Global:
