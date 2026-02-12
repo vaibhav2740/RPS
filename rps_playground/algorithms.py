@@ -1,4 +1,4 @@
-"""32 Rock-Paper-Scissors algorithms (20 baseline + 12 creative)."""
+"""103 Rock-Paper-Scissors algorithms (20 baseline + 83 upgraded/creative)."""
 
 from abc import ABC, abstractmethod
 from collections import Counter

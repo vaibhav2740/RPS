@@ -1,10 +1,6 @@
 # ✊✋✌️ RPS Playground — Algorithm Battle Arena
 
-<<<<<<< HEAD
-A modular Rock-Paper-Scissors algorithm testing playground with **81 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
-=======
-A modular Rock-Paper-Scissors algorithm testing playground with **100 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
->>>>>>> vaibhav
+A modular Rock-Paper-Scissors algorithm testing playground with **103 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
 
 ---
 
@@ -71,11 +67,7 @@ Run a single match between any two algorithms.
 
 ### 🏆 Tournament
 
-<<<<<<< HEAD
-Full round-robin — every algorithm plays every other algorithm (2850 matches total with 81 bots).
-=======
-Full round-robin — every algorithm plays every other algorithm (4950 matches total with 100 bots).
->>>>>>> vaibhav
+Full round-robin — every algorithm plays every other algorithm (5253 matches total with 103 bots).
 
 1. **Set rounds per match** and optional **seed**
 2. Click **🏆 RUN**
@@ -84,11 +76,7 @@ Full round-robin — every algorithm plays every other algorithm (4950 matches t
 
 ### 🤖 One vs All
 
-<<<<<<< HEAD
-Test a single algorithm against the entire pool of 81 bots.
-=======
-Test a single algorithm against the entire pool of 100 bots.
->>>>>>> vaibhav
+Test a single algorithm against the entire pool of 103 bots.
 
 1. **Select your algorithm** from the dropdown
 2. **Set rounds** and optional **seed**
@@ -100,11 +88,7 @@ Test a single algorithm against the entire pool of 100 bots.
 
 ## 🤖 Algorithm Reference
 
-<<<<<<< HEAD
-All 76 algorithms explained in detail.
-=======
-All 100 algorithms explained in detail.
->>>>>>> vaibhav
+All 103 algorithms explained in detail.
 
 > **Notation used throughout:**
 > - `counter(X)` = the move that beats X. So `counter(Rock) = Paper`, `counter(Paper) = Scissors`, `counter(Scissors) = Rock`.
