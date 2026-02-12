@@ -6408,7 +6408,7 @@ class TheArchitect(Algorithm):
             # Counter opponent's last move
             if oh:
                 return (oh[-1] + 1) % 3
-            return self.rng.integers(3)
+            return self.rng.randint(0, 2)
 
         elif strategy_id == 1:
             # Counter opponent's most frequent
@@ -6417,20 +6417,20 @@ class TheArchitect(Algorithm):
                 for m in oh:
                     freq[m] += 1
                 return (int(_np.argmax(freq)) + 1) % 3
-            return self.rng.integers(3)
+            return self.rng.randint(0, 2)
 
         elif strategy_id == 2:
             # Copy opponent (play same)
             if oh:
                 return oh[-1]
-            return self.rng.integers(3)
+            return self.rng.randint(0, 2)
 
         elif strategy_id == 3:
             # Markov-1 counter
             if oh:
                 pred = int(_np.argmax(self._trans1[oh[-1]]))
                 return (pred + 1) % 3
-            return self.rng.integers(3)
+            return self.rng.randint(0, 2)
 
         elif strategy_id == 4:
             # Markov-2 counter
@@ -6438,7 +6438,7 @@ class TheArchitect(Algorithm):
                 st = oh[-2] * 3 + oh[-1]
                 pred = int(_np.argmax(self._trans2[st]))
                 return (pred + 1) % 3
-            return self.rng.integers(3)
+            return self.rng.randint(0, 2)
 
         elif strategy_id == 5:
             # De Bruijn counter (cycle through all 3)
@@ -6453,7 +6453,7 @@ class TheArchitect(Algorithm):
                 if (m - o) % 3 == 1:
                     return m  # Won → stay
                 return (m + 1) % 3  # Lost/draw → shift
-            return self.rng.integers(3)
+            return self.rng.randint(0, 2)
 
         elif strategy_id == 7:
             # Anti-frequency (counter their counter to our most-played)
@@ -6464,7 +6464,7 @@ class TheArchitect(Algorithm):
                 my_most = int(_np.argmax(freq))
                 their_counter = (my_most + 1) % 3
                 return (their_counter + 1) % 3
-            return self.rng.integers(3)
+            return self.rng.randint(0, 2)
 
         elif strategy_id == 8:
             # Pattern match depth 3
@@ -6475,7 +6475,7 @@ class TheArchitect(Algorithm):
                         pos = i + 3
                         if pos < len(oh):
                             return (oh[pos] + 1) % 3
-            return self.rng.integers(3)
+            return self.rng.randint(0, 2)
 
         elif strategy_id == 9:
             # Pattern match depth 5
@@ -6486,18 +6486,18 @@ class TheArchitect(Algorithm):
                         pos = i + 5
                         if pos < len(oh):
                             return (oh[pos] + 1) % 3
-            return self.rng.integers(3)
+            return self.rng.randint(0, 2)
 
         elif strategy_id == 10:
             # Nash (uniform random)
-            return self.rng.integers(3)
+            return self.rng.randint(0, 2)
 
         elif strategy_id == 11:
             # Anti-last-own: counter what beats our last move
             if mh:
                 what_beats_me = (mh[-1] + 1) % 3
                 return (what_beats_me + 1) % 3
-            return self.rng.integers(3)
+            return self.rng.randint(0, 2)
 
         return self.rng.integers(3)
 
@@ -6526,7 +6526,7 @@ class TheArchitect(Algorithm):
 
         # Thompson Sampling: sample from each Beta distribution
         samples = _np.array([
-            self.rng.beta(self._alpha[i], self._beta[i])
+            self.rng.betavariate(self._alpha[i], self._beta[i])
             for i in range(self._n_strategies)
         ])
 
