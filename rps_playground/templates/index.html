@@ -1888,6 +1888,8 @@
             document.getElementById('comp-leaderboard').innerHTML = buildLeaderboardTable(sorted);
             const names = sorted.map(e => e.name);
             document.getElementById('comp-matrix').innerHTML = buildMatrixTable(data.matrix, names);
+            const el = document.getElementById('comp-result');
+            el.style.display = '';
             show('comp-result');
         }
     </script>
