@@ -2107,7 +2107,7 @@ class Shapeshifter(Algorithm):
         if phase == 3:
             # Markov
             if len(opp_history) >= 2:
-                last = self._base._m2i[opp_history[-1]]
+                last = opp_history[-1]
                 transitions = Counter()
                 for j in range(len(opp_history) - 1):
                     if opp_history[j] == last:
