@@ -12,6 +12,10 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
+    <!-- Animation Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles-engine@2.12.0/tsparticles.engine.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles-slim@2.12.0/tsparticles.slim.bundle.min.js" defer></script>
     <style>
         /* ===== RESET & BASE ===== */
         *,
@@ -60,14 +64,21 @@
         }
 
         /* ===== BACKGROUND EFFECTS ===== */
+        #particles-bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
+
         body::before {
             content: '';
             position: fixed;
             inset: 0;
             background:
-                radial-gradient(ellipse 80% 60% at 20% 10%, rgba(6, 182, 212, 0.08), transparent),
-                radial-gradient(ellipse 60% 50% at 80% 80%, rgba(139, 92, 246, 0.08), transparent),
-                radial-gradient(ellipse 40% 40% at 50% 50%, rgba(236, 72, 153, 0.04), transparent);
+                radial-gradient(ellipse 80% 60% at 20% 10%, rgba(6, 182, 212, 0.06), transparent),
+                radial-gradient(ellipse 60% 50% at 80% 80%, rgba(139, 92, 246, 0.06), transparent),
+                radial-gradient(ellipse 40% 40% at 50% 50%, rgba(236, 72, 153, 0.03), transparent);
             pointer-events: none;
             z-index: 0;
         }
@@ -87,19 +98,67 @@
             padding: 48px 0 32px;
         }
 
+        .logo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            margin-bottom: 8px;
+        }
+
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            flex-shrink: 0;
+            filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.4));
+            animation: logoPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes logoPulse {
+
+            0%,
+            100% {
+                filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.4));
+                transform: scale(1);
+            }
+
+            50% {
+                filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.5));
+                transform: scale(1.04);
+            }
+        }
+
         .logo {
             font-size: 3rem;
             font-weight: 800;
-            background: var(--gradient-main);
+            background: linear-gradient(135deg, #06b6d4, #8b5cf6, #ec4899, #06b6d4);
+            background-size: 300% 300%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
             letter-spacing: -1px;
-            margin-bottom: 8px;
+            animation: gradientShift 6s ease infinite;
         }
 
-        .logo span {
-            font-size: 3.2rem;
+        @keyframes gradientShift {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .subtitle-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
         }
 
         .subtitle {
@@ -107,6 +166,56 @@
             font-size: 1.05rem;
             font-weight: 400;
             letter-spacing: 0.5px;
+        }
+
+        .algo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 12px;
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(139, 92, 246, 0.15));
+            border: 1px solid rgba(6, 182, 212, 0.25);
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            letter-spacing: 0.3px;
+        }
+
+        .algo-badge .dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: dotBlink 2s ease-in-out infinite;
+        }
+
+        @keyframes dotBlink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        /* ===== INLINE SVG ICONS ===== */
+        .ico {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            vertical-align: -0.125em;
+            fill: currentColor;
+            flex-shrink: 0;
+        }
+
+        .ico-lg {
+            width: 1.2em;
+            height: 1.2em;
+            vertical-align: -0.15em;
         }
 
         /* ===== TAB NAVIGATION ===== */
@@ -155,23 +264,10 @@
         /* ===== TAB CONTENT ===== */
         .tab-content {
             display: none;
-            animation: fadeSlideUp 0.4s ease;
         }
 
         .tab-content.active {
             display: block;
-        }
-
-        @keyframes fadeSlideUp {
-            from {
-                opacity: 0;
-                transform: translateY(16px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
 
         /* ===== GLASS CARD ===== */
@@ -179,23 +275,29 @@
             background: var(--bg-glass);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
-            border: 1px solid var(--border-glass);
+            border: 1px solid rgba(255, 255, 255, 0.10);
             border-radius: var(--radius);
             padding: 32px;
             margin-bottom: 24px;
-            box-shadow: var(--shadow-lg);
-            transition: var(--transition);
+            box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                border-color var(--transition),
+                box-shadow var(--transition);
         }
 
         .card:hover {
-            border-color: rgba(255, 255, 255, 0.12);
-            box-shadow: var(--shadow-lg), var(--shadow-glow);
+            border-color: rgba(255, 255, 255, 0.16);
+            box-shadow: var(--shadow-lg), var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            transform: translateY(-3px);
         }
 
         .card-title {
             font-size: 1.15rem;
             font-weight: 700;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid transparent;
+            border-image: linear-gradient(90deg, rgba(6, 182, 212, 0.4), rgba(139, 92, 246, 0.3), transparent) 1;
             display: flex;
             align-items: center;
             gap: 10px;
@@ -242,6 +344,7 @@
             transition: var(--transition);
             appearance: none;
             outline: none;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         select {
@@ -254,7 +357,7 @@
         select:focus,
         input[type="number"]:focus {
             border-color: var(--accent-cyan);
-            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15), 0 0 20px rgba(6, 182, 212, 0.08);
         }
 
         select option {
@@ -281,16 +384,17 @@
         .btn-primary {
             background: var(--gradient-main);
             color: #fff;
-            box-shadow: 0 4px 20px rgba(6, 182, 212, 0.3);
+            box-shadow: 0 4px 20px rgba(6, 182, 212, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
         }
 
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(6, 182, 212, 0.4);
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 30px rgba(6, 182, 212, 0.45), 0 0 20px rgba(6, 182, 212, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
         }
 
         .btn-primary:active {
-            transform: translateY(0);
+            transform: translateY(1px) scale(0.97);
+            transition: 0.08s;
         }
 
         .btn-primary:disabled {
@@ -414,22 +518,29 @@
 
         .stat-value {
             font-family: 'JetBrains Mono', monospace;
-            font-weight: 500;
+            font-weight: 600;
+            font-size: 0.95rem;
             padding: 8px 0;
         }
 
         .elo-delta {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            font-weight: 600;
+            font-size: 0.88rem;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 6px;
+            display: inline-block;
+            margin-top: 4px;
         }
 
         .elo-delta.positive {
             color: var(--accent-green);
+            background: rgba(16, 185, 129, 0.1);
         }
 
         .elo-delta.negative {
             color: var(--accent-red);
+            background: rgba(239, 68, 68, 0.1);
         }
 
         /* ===== LEADERBOARD TABLE ===== */
@@ -472,6 +583,10 @@
             transition: var(--transition);
         }
 
+        tbody tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.015);
+        }
+
         tbody tr:hover {
             background: rgba(6, 182, 212, 0.06);
         }
@@ -484,12 +599,12 @@
             white-space: nowrap;
         }
 
-        tbody td:first-child {
+        :not(.matrix-table)>tbody td:first-child {
             font-weight: 700;
             color: var(--text-secondary);
         }
 
-        tbody td:nth-child(2) {
+        :not(.matrix-table)>tbody td:nth-child(2) {
             font-family: 'Inter', sans-serif;
             font-weight: 600;
             color: var(--text-primary);
@@ -499,12 +614,24 @@
             color: #fbbf24;
         }
 
+        .rank-1 {
+            border-left: 3px solid #fbbf24;
+        }
+
         .rank-2 td:first-child {
             color: #d1d5db;
         }
 
+        .rank-2 {
+            border-left: 3px solid #d1d5db;
+        }
+
         .rank-3 td:first-child {
             color: #d97706;
+        }
+
+        .rank-3 {
+            border-left: 3px solid #d97706;
         }
 
         .elo-cell {
@@ -553,24 +680,45 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            color: var(--text-secondary) !important;
         }
 
         .matrix-cell-w {
             color: var(--accent-green);
             font-weight: 700;
+            background: rgba(16, 185, 129, 0.08);
         }
 
         .matrix-cell-l {
             color: var(--accent-red);
             font-weight: 700;
+            background: rgba(239, 68, 68, 0.08);
         }
 
         .matrix-cell-d {
             color: var(--text-muted);
+            background: rgba(245, 158, 11, 0.04);
         }
 
         .matrix-cell-self {
             color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .matrix-table td,
+        .matrix-table th {
+            border-right: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .matrix-table td:last-child,
+        .matrix-table th:last-child {
+            border-right: none;
+        }
+
+        .matrix-table thead th {
+            background: linear-gradient(180deg, rgba(6, 182, 212, 0.08), rgba(139, 92, 246, 0.04));
+            color: var(--accent-cyan);
+            font-size: 0.72rem;
         }
 
         /* ===== MATCHUPS LIST (One vs All) ===== */
@@ -589,12 +737,26 @@
             background: rgba(0, 0, 0, 0.2);
             border-radius: var(--radius-sm);
             border: 1px solid var(--border-glass);
+            border-left: 3px solid var(--border-glass);
             transition: var(--transition);
         }
 
         .matchup-item:hover {
             border-color: rgba(255, 255, 255, 0.1);
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(0, 0, 0, 0.25);
+            transform: translateX(2px);
+        }
+
+        .matchup-item:has(.matchup-badge.win) {
+            border-left-color: var(--accent-green);
+        }
+
+        .matchup-item:has(.matchup-badge.loss) {
+            border-left-color: var(--accent-red);
+        }
+
+        .matchup-item:has(.matchup-badge.draw) {
+            border-left-color: var(--accent-yellow);
         }
 
         .matchup-name {
@@ -739,6 +901,7 @@
             border-radius: var(--radius-sm);
             border: 1px solid var(--border-glass);
             padding: 12px 16px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
 
         .progress-stat-label {
@@ -782,6 +945,15 @@
                 font-size: 2rem;
             }
 
+            .logo-icon {
+                width: 40px;
+                height: 40px;
+            }
+
+            .logo-row {
+                gap: 10px;
+            }
+
             .form-row {
                 flex-direction: column;
                 gap: 12px;
@@ -819,25 +991,117 @@
 </head>
 
 <body>
+    <!-- Particle Background -->
+    <div id="particles-bg"></div>
+
+    <!-- SVG Sprite Sheet (hidden) -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+        <defs>
+            <linearGradient id="rpsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#06b6d4" />
+                <stop offset="50%" stop-color="#8b5cf6" />
+                <stop offset="100%" stop-color="#ec4899" />
+            </linearGradient>
+        </defs>
+        <!-- Swords / Battle -->
+        <symbol id="ico-swords" viewBox="0 0 24 24">
+            <path
+                d="M6.2 2L2 6.2l1.4 1.4L4.8 6.2l5 5-1.4 1.4-5-5L2 9l-1.4-1.4L6.2 2zM17.8 2L22 6.2l-1.4 1.4-1.4-1.4-5 5 1.4 1.4 5-5L22 9l1.4-1.4L17.8 2zM12 10.6l-1.4 1.4 3 3-3.6 3.6V21h2.4l3.6-3.6 3 3 1.4-1.4-8.4-8.4zM3.6 21H6l3.6-3.6-2.4-2.4L3.6 18.6V21z"
+                fill="url(#rpsGrad)" />
+        </symbol>
+        <!-- Trophy -->
+        <symbol id="ico-trophy" viewBox="0 0 24 24">
+            <path
+                d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"
+                fill="url(#rpsGrad)" />
+        </symbol>
+        <!-- Bot / Target -->
+        <symbol id="ico-bot" viewBox="0 0 24 24">
+            <path
+                d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1H3a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM9 14a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"
+                fill="url(#rpsGrad)" />
+        </symbol>
+        <!-- Timer / Progress -->
+        <symbol id="ico-timer" viewBox="0 0 24 24">
+            <path
+                d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42A8.962 8.962 0 0 0 12 4c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"
+                fill="url(#rpsGrad)" />
+        </symbol>
+        <!-- Chart / Leaderboard -->
+        <symbol id="ico-chart" viewBox="0 0 24 24">
+            <path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z" fill="url(#rpsGrad)" />
+        </symbol>
+        <!-- Grid / Matrix -->
+        <symbol id="ico-grid" viewBox="0 0 24 24">
+            <path
+                d="M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z"
+                fill="url(#rpsGrad)" />
+        </symbol>
+        <!-- Crosshair / Results -->
+        <symbol id="ico-target" viewBox="0 0 24 24">
+            <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm-1-13h2v2h-2zm0 4h2v6h-2z"
+                fill="url(#rpsGrad)" />
+        </symbol>
+        <symbol id="ico-target2" viewBox="0 0 24 24">
+            <path
+                d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"
+                fill="url(#rpsGrad)" />
+        </symbol>
+        <!-- Code / Flask -->
+        <symbol id="ico-flask" viewBox="0 0 24 24">
+            <path d="M9 3V1h6v2h-2v5.59l5 7.12V21H6v-5.29l5-7.12V3H9zm-1 15h8l-4-5.71L8 18z" fill="url(#rpsGrad)" />
+        </symbol>
+    </svg>
+
     <div class="container">
         <!-- HEADER -->
         <header>
-            <h1 class="logo"><span>🎮</span> RPS Playground</h1>
-            <p class="subtitle">Algorithm Battle Arena · Elo Rated</p>
+            <div class="logo-row">
+                <svg class="logo-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Outer ring -->
+                    <circle cx="50" cy="50" r="46" fill="none" stroke="url(#rpsGrad)" stroke-width="3" opacity="0.6" />
+                    <!-- Rock (fist) -->
+                    <text x="50" y="30" text-anchor="middle" font-size="22" dominant-baseline="central">✊</text>
+                    <!-- Paper (hand) -->
+                    <text x="27" y="72" text-anchor="middle" font-size="22" dominant-baseline="central">✋</text>
+                    <!-- Scissors -->
+                    <text x="73" y="72" text-anchor="middle" font-size="22" dominant-baseline="central">✌️</text>
+                    <!-- Connecting arrows (triangle) -->
+                    <path d="M50 40 L30 66" stroke="url(#rpsGrad)" stroke-width="1.5" fill="none" opacity="0.4" />
+                    <path d="M30 66 L70 66" stroke="url(#rpsGrad)" stroke-width="1.5" fill="none" opacity="0.4" />
+                    <path d="M70 66 L50 40" stroke="url(#rpsGrad)" stroke-width="1.5" fill="none" opacity="0.4" />
+                </svg>
+                <h1 class="logo">RPS Playground</h1>
+            </div>
+            <div class="subtitle-row">
+                <p class="subtitle">Algorithm Battle Arena · Elo Rated</p>
+                <span class="algo-badge"><span class="dot"></span>81 bots</span>
+            </div>
         </header>
 
         <!-- TABS -->
         <nav class="tabs">
-            <button class="tab-btn active" data-tab="h2h" id="tab-h2h">⚔️ Head-to-Head</button>
-            <button class="tab-btn" data-tab="tournament" id="tab-tournament">🏆 Tournament</button>
-            <button class="tab-btn" data-tab="competition" id="tab-competition">🏅 Competition</button>
-            <button class="tab-btn" data-tab="ova" id="tab-ova">🤖 One vs All</button>
+            <button class="tab-btn active" data-tab="h2h" id="tab-h2h"><svg class="ico">
+                    <use href="#ico-swords" />
+                </svg> Head-to-Head</button>
+            <button class="tab-btn" data-tab="tournament" id="tab-tournament"><svg class="ico">
+                    <use href="#ico-trophy" />
+                </svg> Tournament</button>
+            <button class="tab-btn" data-tab="ova" id="tab-ova"><svg class="ico">
+                    <use href="#ico-bot" />
+                </svg> One vs All</button>
+            <button class="tab-btn" data-tab="competition" id="tab-competition"><svg class="ico">
+                    <use href="#ico-trophy" />
+                </svg> Competition</button>
         </nav>
 
         <!-- ===== HEAD-TO-HEAD TAB ===== -->
         <div class="tab-content active" id="content-h2h">
             <div class="card">
-                <div class="card-title"><span class="icon">⚔️</span> Head-to-Head Match</div>
+                <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                            <use href="#ico-swords" />
+                        </svg></span> Head-to-Head Match</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Algorithm A</label>
@@ -860,7 +1124,9 @@
                     </div>
                     <div class="form-group" style="flex:0;">
                         <label>&nbsp;</label>
-                        <button class="btn btn-primary" id="h2h-run" onclick="runH2H()">⚔️ Fight!</button>
+                        <button class="btn btn-primary" id="h2h-run" onclick="runH2H()"><svg class="ico">
+                                <use href="#ico-swords" />
+                            </svg> Fight!</button>
                     </div>
                 </div>
             </div>
@@ -907,7 +1173,9 @@
         <!-- ===== TOURNAMENT TAB ===== -->
         <div class="tab-content" id="content-tournament">
             <div class="card">
-                <div class="card-title"><span class="icon">🏆</span> Full Round-Robin Tournament</div>
+                <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                            <use href="#ico-trophy" />
+                        </svg></span> Full Round-Robin Tournament</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Rounds per match</label>
@@ -919,7 +1187,9 @@
                     </div>
                     <div class="form-group" style="flex:0;">
                         <label>&nbsp;</label>
-                        <button class="btn btn-primary" id="trn-run" onclick="runTournament()">🏆 Run</button>
+                        <button class="btn btn-primary" id="trn-run" onclick="runTournament()"><svg class="ico">
+                                <use href="#ico-trophy" />
+                            </svg> Run</button>
                     </div>
                 </div>
             </div>
@@ -931,7 +1201,9 @@
 
             <div class="progress-panel" id="trn-progress">
                 <div class="card">
-                    <div class="card-title"><span class="icon">⏳</span> Tournament Progress</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                                <use href="#ico-timer" />
+                            </svg></span> Tournament Progress</div>
                     <div class="progress-bar-outer">
                         <div class="progress-bar-inner" id="trn-bar" style="width: 0%"></div>
                         <div class="progress-pct" id="trn-pct">0%</div>
@@ -960,86 +1232,16 @@
 
             <div class="result-panel" id="trn-result">
                 <div class="card">
-                    <div class="card-title"><span class="icon">📊</span> Leaderboard</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                                <use href="#ico-chart" />
+                            </svg></span> Leaderboard</div>
                     <div class="table-wrapper" id="trn-leaderboard"></div>
                 </div>
                 <div class="card">
-                    <div class="card-title"><span class="icon">🔀</span> Head-to-Head Matrix</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                                <use href="#ico-grid" />
+                            </svg></span> Head-to-Head Matrix</div>
                     <div class="matrix-wrapper" id="trn-matrix"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== COMPETITION TAB ===== -->
-        <div class="tab-content" id="content-competition">
-            <div class="card">
-                <div class="card-title"><span class="icon">🏅</span> Competition Tournament</div>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem; line-height: 1.6;">
-                    Tournament with <strong>opponent metadata</strong> — each algorithm knows its opponent's name
-                    and prior tournament results. Runs sequentially (100 rounds/match).
-                    Algorithms that implement <code style="color: var(--accent-cyan);">set_match_context()</code> can
-                    exploit this for meta-strategy (<em>The Hydra</em> does!).
-                </p>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Rounds per match</label>
-                        <input type="number" id="comp-rounds" value="100" min="10" max="10000" step="10">
-                    </div>
-                    <div class="form-group">
-                        <label>Seed (optional)</label>
-                        <input type="number" id="comp-seed" placeholder="Random">
-                    </div>
-                    <div class="form-group" style="flex:0;">
-                        <label>&nbsp;</label>
-                        <button class="btn btn-primary" id="comp-run" onclick="runCompetition()">🏅 Run</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="spinner" id="comp-spinner">
-                <div class="spinner-ring"></div>
-                <div class="spinner-text">Starting competition...</div>
-            </div>
-
-            <div class="progress-panel" id="comp-progress">
-                <div class="card">
-                    <div class="card-title"><span class="icon">⏳</span> Competition Progress <span
-                            style="color: var(--accent-yellow); font-size: 0.75rem; margin-left: 8px;">⚠️ Sequential —
-                            slower but metadata-aware</span></div>
-                    <div class="progress-bar-outer">
-                        <div class="progress-bar-inner" id="comp-bar" style="width: 0%"></div>
-                        <div class="progress-pct" id="comp-pct">0%</div>
-                    </div>
-                    <div class="progress-stats">
-                        <div class="progress-stat">
-                            <div class="progress-stat-label">Matches Completed</div>
-                            <div class="progress-stat-value" id="comp-count">0 / 0</div>
-                        </div>
-                        <div class="progress-stat">
-                            <div class="progress-stat-label">Elapsed</div>
-                            <div class="progress-stat-value" id="comp-elapsed">0s</div>
-                        </div>
-                        <div class="progress-stat">
-                            <div class="progress-stat-label">Estimated Time Left</div>
-                            <div class="progress-stat-value" id="comp-eta">Calculating...</div>
-                        </div>
-                        <div class="progress-stat">
-                            <div class="progress-stat-label">Last Match</div>
-                            <div class="progress-stat-value" id="comp-last-winner">—</div>
-                        </div>
-                    </div>
-                    <div class="progress-match" id="comp-match">Preparing matches...</div>
-                </div>
-            </div>
-
-            <div class="result-panel" id="comp-result">
-                <div class="card">
-                    <div class="card-title"><span class="icon">📊</span> Competition Leaderboard</div>
-                    <div class="table-wrapper" id="comp-leaderboard"></div>
-                </div>
-                <div class="card">
-                    <div class="card-title"><span class="icon">🔀</span> Head-to-Head Matrix</div>
-                    <div class="matrix-wrapper" id="comp-matrix"></div>
                 </div>
             </div>
         </div>
@@ -1047,7 +1249,9 @@
         <!-- ===== ONE VS ALL TAB ===== -->
         <div class="tab-content" id="content-ova">
             <div class="card">
-                <div class="card-title"><span class="icon">🤖</span> One vs All</div>
+                <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                            <use href="#ico-bot" />
+                        </svg></span> One vs All</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Your Algorithm</label>
@@ -1063,7 +1267,9 @@
                     </div>
                     <div class="form-group" style="flex:0;">
                         <label>&nbsp;</label>
-                        <button class="btn btn-primary" id="ova-run" onclick="runOVA()">🤖 Run</button>
+                        <button class="btn btn-primary" id="ova-run" onclick="runOVA()"><svg class="ico">
+                                <use href="#ico-bot" />
+                            </svg> Run</button>
                     </div>
                 </div>
             </div>
@@ -1075,7 +1281,9 @@
 
             <div class="progress-panel" id="ova-progress">
                 <div class="card">
-                    <div class="card-title"><span class="icon">⏳</span> One vs All Progress</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                                <use href="#ico-timer" />
+                            </svg></span> One vs All Progress</div>
                     <div class="progress-bar-outer">
                         <div class="progress-bar-inner" id="ova-bar" style="width: 0%"></div>
                         <div class="progress-pct" id="ova-pct">0%</div>
@@ -1104,39 +1312,209 @@
 
             <div class="result-panel" id="ova-result">
                 <div class="card">
-                    <div class="card-title"><span class="icon">🎯</span> Match Results</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                                <use href="#ico-target2" />
+                            </svg></span> Match Results</div>
                     <div class="matchup-grid" id="ova-matchups"></div>
                 </div>
                 <div class="card">
-                    <div class="card-title"><span class="icon">📊</span> Rankings</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                                <use href="#ico-chart" />
+                            </svg></span> Rankings</div>
                     <div class="table-wrapper" id="ova-leaderboard"></div>
                 </div>
             </div>
         </div>
 
-        <footer>RPS Playground · Built with 🐍 Python + Flask</footer>
+        <!-- ===== COMPETITION TAB ===== -->
+        <div class="tab-content" id="content-competition">
+            <div class="card">
+                <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-trophy" /></svg></span> Competition Tournament (Metadata-Aware)</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Rounds per match</label>
+                        <input type="number" id="comp-rounds" value="100" min="10" max="10000">
+                    </div>
+                    <div class="form-group">
+                        <label>Seed (optional)</label>
+                        <input type="number" id="comp-seed" placeholder="Random">
+                    </div>
+                    <div class="form-group" style="flex:0;">
+                        <button class="btn btn-primary" onclick="runCompetition()">Run Competition</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div class="progress-panel" id="comp-progress">
+                <div class="card">
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-timer" /></svg></span> Competition In Progress</div>
+                    <div class="progress-bar-outer">
+                        <div class="progress-bar-inner" id="comp-progress-bar" style="width:0%"></div>
+                        <div class="progress-pct" id="comp-progress-pct">0%</div>
+                    </div>
+                    <div class="progress-match" id="comp-match-info"></div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div id="comp-result" style="display:none;">
+                <div class="card">
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-chart" /></svg></span> Competition Leaderboard (Sorted by Score)</div>
+                    <div class="table-wrapper" id="comp-leaderboard"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-grid" /></svg></span> H2H Matrix</div>
+                    <div class="matrix-wrapper" id="comp-matrix"></div>
+                </div>
+            </div>
+        </div>
+
+        <footer>RPS Playground · Built with <svg class="ico" style="color:#06b6d4">
+                <use href="#ico-flask" />
+            </svg> Python + Flask</footer>
     </div>
 
     <script>
         // ===== STATE =====
         let algorithms = [];
 
+        // ===== PARTICLES INIT =====
+        function initParticles() {
+            if (typeof tsParticles === 'undefined') {
+                // Retry after CDN loads
+                setTimeout(initParticles, 200);
+                return;
+            }
+            tsParticles.load('particles-bg', {
+                fpsLimit: 60,
+                particles: {
+                    number: { value: 40, density: { enable: true, area: 1200 } },
+                    color: { value: ['#06b6d4', '#8b5cf6', '#ec4899'] },
+                    shape: { type: 'circle' },
+                    opacity: { value: { min: 0.1, max: 0.35 }, animation: { enable: true, speed: 0.8, minimumValue: 0.05 } },
+                    size: { value: { min: 1.5, max: 4 }, animation: { enable: true, speed: 1.5, minimumValue: 0.5 } },
+                    move: {
+                        enable: true, speed: 0.6, direction: 'none', random: true,
+                        straight: false, outModes: 'out',
+                    },
+                    links: {
+                        enable: true, distance: 140, color: '#8b5cf6',
+                        opacity: 0.08, width: 1,
+                    },
+                },
+                interactivity: {
+                    detectsOn: 'window',
+                    events: {
+                        onHover: { enable: true, mode: 'grab' },
+                        resize: true,
+                    },
+                    modes: {
+                        grab: { distance: 160, links: { opacity: 0.2 } },
+                    },
+                },
+                detectRetina: true,
+            });
+        }
+
+        // ===== GSAP HELPERS =====
+        const G = () => typeof gsap !== 'undefined';
+
+        function animateEntrance() {
+            if (!G()) return;
+            gsap.from('header', { opacity: 0, y: -30, duration: 0.7, ease: 'power3.out' });
+            gsap.from('.logo-icon', { opacity: 0, scale: 0.5, rotation: -180, duration: 0.9, ease: 'back.out(1.7)', delay: 0.2 });
+            gsap.from('.logo', { opacity: 0, x: -20, duration: 0.6, ease: 'power2.out', delay: 0.3 });
+            gsap.from('.subtitle-row', { opacity: 0, y: 10, duration: 0.5, ease: 'power2.out', delay: 0.5 });
+            gsap.from('.tabs', { opacity: 0, y: 20, duration: 0.5, ease: 'power2.out', delay: 0.6 });
+            animateCards('#content-h2h');
+        }
+
+        function animateCards(sel) {
+            if (!G()) return;
+            const cards = document.querySelectorAll(sel + ' .card');
+            gsap.fromTo(cards,
+                { opacity: 0, y: 30, scale: 0.97 },
+                { opacity: 1, y: 0, scale: 1, duration: 0.5, stagger: 0.08, ease: 'power2.out' }
+            );
+        }
+
+        function switchTab(tabName) {
+            const outgoing = document.querySelector('.tab-content.active');
+            const incoming = document.getElementById('content-' + tabName);
+            if (outgoing === incoming) return;
+
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            if (G() && outgoing) {
+                gsap.to(outgoing, {
+                    opacity: 0, x: -30, duration: 0.2, ease: 'power2.in',
+                    onComplete: () => {
+                        outgoing.classList.remove('active');
+                        outgoing.style.cssText = '';
+                        incoming.classList.add('active');
+                        gsap.fromTo(incoming,
+                            { opacity: 0, x: 30 },
+                            { opacity: 1, x: 0, duration: 0.35, ease: 'power2.out' }
+                        );
+                        animateCards('#content-' + tabName);
+                    },
+                });
+            } else {
+                if (outgoing) outgoing.classList.remove('active');
+                incoming.classList.add('active');
+            }
+        }
+
+        function animateResultPanel(panelId) {
+            const panel = document.getElementById(panelId);
+            panel.classList.add('visible');
+            if (!G()) return;
+            gsap.fromTo(panel,
+                { opacity: 0, scale: 0.95, y: 20 },
+                { opacity: 1, scale: 1, y: 0, duration: 0.5, ease: 'back.out(1.4)' }
+            );
+            const cards = panel.querySelectorAll('.card');
+            if (cards.length) {
+                gsap.fromTo(cards,
+                    { opacity: 0, y: 20 },
+                    { opacity: 1, y: 0, duration: 0.4, stagger: 0.1, ease: 'power2.out', delay: 0.15 }
+                );
+            }
+        }
+
+        function animateCounter(el, targetVal) {
+            if (!G()) { el.textContent = targetVal.toLocaleString(); return; }
+            const obj = { val: 0 };
+            gsap.to(obj, {
+                val: targetVal, duration: 0.8, ease: 'power2.out',
+                onUpdate: () => { el.textContent = Math.round(obj.val).toLocaleString(); },
+            });
+        }
+
+        function animateLeaderboardRows(containerId) {
+            if (!G()) return;
+            const rows = document.querySelectorAll('#' + containerId + ' tbody tr');
+            gsap.fromTo(rows,
+                { opacity: 0, x: -15 },
+                { opacity: 1, x: 0, duration: 0.3, stagger: 0.03, ease: 'power2.out' }
+            );
+        }
+
         // ===== INIT =====
         document.addEventListener('DOMContentLoaded', async () => {
-            // Load algorithm list
+            initParticles();
+
             const res = await fetch('/api/algorithms');
             algorithms = await res.json();
             populateSelects();
 
-            // Tab switching
             document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                    btn.classList.add('active');
-                    document.getElementById('content-' + btn.dataset.tab).classList.add('active');
-                });
+                btn.addEventListener('click', () => switchTab(btn.dataset.tab));
             });
+
+            animateEntrance();
         });
 
         function populateSelects() {
@@ -1147,7 +1525,6 @@
                     const opt = document.createElement('option');
                     opt.value = name;
                     opt.textContent = name;
-                    // Default selection
                     if (id === 'h2h-algo-b' && i === 3) opt.selected = true;
                     sel.appendChild(opt);
                 });
@@ -1209,10 +1586,10 @@
             // Winner
             const winEl = document.getElementById('h2h-winner');
             if (data.winner === 'DRAW') {
-                winEl.textContent = '🤝 Draw!';
+                winEl.innerHTML = '<svg class="ico" style="width:1.3em;height:1.3em;vertical-align:-0.2em"><use href="#ico-swords"/></svg> Draw!';
                 winEl.className = 'result-winner draw';
             } else {
-                winEl.textContent = `🏆 ${data.winner} Wins!`;
+                winEl.innerHTML = `<svg class="ico" style="width:1.3em;height:1.3em;vertical-align:-0.2em"><use href="#ico-trophy"/></svg> ${data.winner} Wins!`;
                 winEl.className = 'result-winner win';
             }
 
@@ -1220,17 +1597,17 @@
             document.getElementById('h2h-name-a').textContent = m.algo_a;
             document.getElementById('h2h-name-b').textContent = m.algo_b;
 
-            // Stats
-            document.getElementById('h2h-wins-a').textContent = m.a_wins.toLocaleString();
-            document.getElementById('h2h-wins-b').textContent = m.b_wins.toLocaleString();
-            document.getElementById('h2h-losses-a').textContent = m.b_wins.toLocaleString();
-            document.getElementById('h2h-losses-b').textContent = m.a_wins.toLocaleString();
-            document.getElementById('h2h-draws-a').textContent = m.draws.toLocaleString();
-            document.getElementById('h2h-draws-b').textContent = m.draws.toLocaleString();
+            // Animated stat counters
+            animateCounter(document.getElementById('h2h-wins-a'), m.a_wins);
+            animateCounter(document.getElementById('h2h-wins-b'), m.b_wins);
+            animateCounter(document.getElementById('h2h-losses-a'), m.b_wins);
+            animateCounter(document.getElementById('h2h-losses-b'), m.a_wins);
+            animateCounter(document.getElementById('h2h-draws-a'), m.draws);
+            animateCounter(document.getElementById('h2h-draws-b'), m.draws);
             document.getElementById('h2h-winpct-a').textContent = m.a_win_pct + '%';
             document.getElementById('h2h-winpct-b').textContent = m.b_win_pct + '%';
 
-            // Elo
+            // Elo with flash animation
             const eloA = document.getElementById('h2h-elo-a');
             const signA = elo.a.delta >= 0 ? '+' : '';
             eloA.textContent = `${elo.a.rating} (${signA}${elo.a.delta})`;
@@ -1241,7 +1618,16 @@
             eloB.textContent = `${elo.b.rating} (${signB}${elo.b.delta})`;
             eloB.className = 'elo-delta ' + (elo.b.delta >= 0 ? 'positive' : 'negative');
 
-            show('h2h-result');
+            if (G()) {
+                [eloA, eloB].forEach(el => {
+                    gsap.fromTo(el,
+                        { scale: 1.4 },
+                        { scale: 1, duration: 0.6, ease: 'elastic.out(1, 0.5)' }
+                    );
+                });
+            }
+
+            animateResultPanel('h2h-result');
         }
 
         // ===== TOURNAMENT =====
@@ -1290,14 +1676,11 @@
         }
 
         function renderTournament(data) {
-            // Leaderboard table
             document.getElementById('trn-leaderboard').innerHTML = buildLeaderboardTable(data.leaderboard);
-
-            // H2H Matrix
             const names = data.leaderboard.map(e => e.name);
             document.getElementById('trn-matrix').innerHTML = buildMatrixTable(data.matrix, names);
-
-            show('trn-result');
+            animateResultPanel('trn-result');
+            animateLeaderboardRows('trn-leaderboard');
         }
 
         // ===== ONE VS ALL =====
@@ -1347,7 +1730,6 @@
         }
 
         function renderOVA(data) {
-            // Matchups grid
             const grid = document.getElementById('ova-matchups');
             grid.innerHTML = data.matchups.map(m => `
                 <div class="matchup-item">
@@ -1359,10 +1741,16 @@
                 </div>
             `).join('');
 
-            // Leaderboard
             document.getElementById('ova-leaderboard').innerHTML = buildLeaderboardTable(data.leaderboard);
+            animateResultPanel('ova-result');
+            animateLeaderboardRows('ova-leaderboard');
 
-            show('ova-result');
+            if (G()) {
+                gsap.fromTo('#ova-matchups .matchup-item',
+                    { opacity: 0, x: -10 },
+                    { opacity: 1, x: 0, duration: 0.25, stagger: 0.02, ease: 'power2.out', delay: 0.2 }
+                );
+            }
         }
 
         // ===== SHARED RENDERERS =====
@@ -1417,47 +1805,32 @@
 
         // ===== COMPETITION =====
         function runCompetition() {
-            const btn = document.getElementById('comp-run');
-            btn.disabled = true;
-            hide('comp-result');
-            hide('comp-progress');
-            showSpinner('comp-spinner');
-
-            const rounds = parseInt(document.getElementById('comp-rounds').value);
-            const seed = getSeed('comp-seed');
+            const rounds = parseInt(document.getElementById('comp-rounds').value) || 100;
+            const seed = document.getElementById('comp-seed').value || '';
+            document.getElementById('comp-result').style.display = 'none';
+            const prog = document.getElementById('comp-progress');
+            prog.classList.add('visible');
+            const bar = document.getElementById('comp-progress-bar');
+            const pct = document.getElementById('comp-progress-pct');
+            const matchInfo = document.getElementById('comp-match-info');
+            bar.style.width = '0%';
+            pct.textContent = '0%';
             let url = `/api/competition/stream?rounds=${rounds}`;
-            if (seed !== null) url += `&seed=${seed}`;
-
-            const source = new EventSource(url);
-
-            source.addEventListener('progress', (e) => {
-                hideSpinner('comp-spinner');
-                show('comp-progress');
+            if (seed) url += `&seed=${seed}`;
+            const es = new EventSource(url);
+            es.addEventListener('progress', e => {
                 const d = JSON.parse(e.data);
-                document.getElementById('comp-bar').style.width = d.pct + '%';
-                document.getElementById('comp-pct').textContent = d.pct + '%';
-                document.getElementById('comp-count').textContent = `${d.completed.toLocaleString()} / ${d.total.toLocaleString()}`;
-                document.getElementById('comp-elapsed').textContent = formatTime(d.elapsed);
-                document.getElementById('comp-eta').textContent = d.eta > 0 ? formatTime(d.eta) : 'Almost done...';
-                document.getElementById('comp-match').innerHTML = `Last: <strong>${d.match}</strong> → ${d.a_wins || '?'}-${d.b_wins || '?'}`;
-                document.getElementById('comp-last-winner').textContent = d.winner;
+                const p = Math.round(d.completed / d.total * 100);
+                bar.style.width = p + '%';
+                pct.textContent = p + '%';
+                matchInfo.innerHTML = `<strong>${d.last_match}</strong> (${d.completed}/${d.total})`;
             });
-
-            source.addEventListener('done', (e) => {
-                source.close();
-                hide('comp-progress');
-                const data = JSON.parse(e.data);
-                renderCompetition(data);
-                btn.disabled = false;
+            es.addEventListener('done', e => {
+                es.close();
+                prog.classList.remove('visible');
+                renderCompetition(JSON.parse(e.data));
             });
-
-            source.addEventListener('error', () => {
-                source.close();
-                hideSpinner('comp-spinner');
-                hide('comp-progress');
-                btn.disabled = false;
-                console.error('Competition stream error');
-            });
+            es.onerror = () => { es.close(); prog.classList.remove('visible'); };
         }
 
         function renderCompetition(data) {
