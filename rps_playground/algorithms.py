@@ -8954,6 +8954,73 @@ class SuperOmniscient(Algorithm):
 
 
 # ALL_ALGORITHM_CLASSES is now dynamically populated at the end of the file.
+
+# ---------------------------------------------------------------------------
+# 101: Mirror Opponent
+# ---------------------------------------------------------------------------
+
+class MirrorOpponent(Algorithm):
+    name = "Mirror Opponent"
+    def choose(self, round_num, my_history, opp_history):
+        if not opp_history:
+            return self.rng.choice(MOVES)
+        return opp_history[-1]
+
+
+# ---------------------------------------------------------------------------
+# 102: Contrarian
+# ---------------------------------------------------------------------------
+
+class Contrarian(Algorithm):
+    """The Contrarian.
+
+    Tracks its own move history and deliberately plays the move
+    it has used least recently. Opponents modeling our frequency
+    will predict our most common move — we play the rarest one.
+    """
+    name = "Contrarian"
+
+    def choose(self, round_num, my_history, opp_history):
+        if not my_history:
+            return self.rng.choice(MOVES)
+
+        # Find our least-played move recently
+        window = my_history[-30:] if len(my_history) >= 30 else my_history
+        counts = Counter(window)
+
+        # Ensure all moves counted
+        for m in MOVES:
+            if m not in counts:
+                counts[m] = 0
+
+        # Play our LEAST common move (the one opponents won't predict)
+        least_common = min(MOVES, key=lambda m: counts[m])
+        return least_common
+
+
+# ---------------------------------------------------------------------------
+# 103: Pattern Detector
+# ---------------------------------------------------------------------------
+
+class PatternDetector(Algorithm):
+    name = "Pattern Detector"
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 3:
+            return self.rng.choice(MOVES)
+        # Try pattern lengths 5 down to 2
+        for length in range(min(5, len(opp_history) - 1), 1, -1):
+            pattern = tuple(opp_history[-length:])
+            # Search for this pattern earlier in history
+            for i in range(len(opp_history) - length):
+                if tuple(opp_history[i:i + length]) == pattern:
+                    if i + length < len(opp_history):
+                        predicted = opp_history[i + length]
+                        return _counter_move(predicted)
+        # Fallback
+        return _counter_move(opp_history[-1])
+
+
 # ---------------------------------------------------------------------------
 # 90: The Singularity — The Ultimate Ensemble
 # ---------------------------------------------------------------------------
@@ -9179,14 +9246,6 @@ class Phoenix(SuperOmniscient):
         return m_base
 
 # Dynamically register all subclasses of Algorithm as available bots
-ALL_ALGORITHM_CLASSES = [
-    cls for cls in Algorithm.__subclasses__()
-    if hasattr(cls, 'name') and cls.name and cls != Algorithm
-]
-
-# Ensure specific known bots that might be subclasses of subclasses are included
-# or handle them recursively if needed. For now, __subclasses__() only goes 1 level deep.
-# Let's use a recursive helper for safety.
 def _get_all_subclasses(cls):
     all_subclasses = []
     for subclass in cls.__subclasses__():
@@ -9194,21 +9253,14 @@ def _get_all_subclasses(cls):
         all_subclasses.extend(_get_all_subclasses(subclass))
     return all_subclasses
 
-ALL_ALGORITHM_CLASSES = [
-    cls for cls in _get_all_subclasses(Algorithm)
-    if hasattr(cls, 'name') and cls.name and cls not in [Algorithm]
-    # Filter out any intermediate base classes if they don't have a concrete implementation
-    and not cls.__name__.endswith('Base')
-]
-
-# Remove duplicates (in case of multiple inheritance, though unlikely here)
+# Filter and unique-ify
+ALL_ALGORITHM_CLASSES = []
 seen = set()
-unique_algos = []
-for cls in ALL_ALGORITHM_CLASSES:
-    if cls.name not in seen:
-        unique_algos.append(cls)
-        seen.add(cls.name)
-ALL_ALGORITHM_CLASSES = unique_algos
+for cls in _get_all_subclasses(Algorithm):
+    if hasattr(cls, 'name') and cls.name and cls != Algorithm and not cls.__name__.endswith('Base'):
+        if cls.name not in seen:
+            ALL_ALGORITHM_CLASSES.append(cls)
+            seen.add(cls.name)
 
 
 
