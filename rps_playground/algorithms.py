@@ -5582,6 +5582,395 @@ class DecisionCascader(Algorithm):
 
 
 # ---------------------------------------------------------------------------
+# 87: The Time Traveler — Echo State Network (Reservoir Computing)
+# ---------------------------------------------------------------------------
+
+class TheTimeTraveler(Algorithm):
+    """Uses a Reservoir Computing (Echo State Network) approach.
+
+    Projects history into a high-dimensional non-linear state space (reservoir)
+    and trains a linear readout to predict the opponent's next move.
+    Training is done online using Ridge Regression on the last 100 states.
+    Fast adaptivity without deep learning overhead.
+    """
+    name = "The Time Traveler"
+
+    def reset(self):
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._oh = []
+        self._mh = []
+
+        # Reservoir params
+        self._res_size = 40  # Small reservoir for speed
+        self._spectral_radius = 0.9
+        self._leak_rate = 0.3
+        self._input_scaling = 0.5
+        self._ridge_alpha = 0.1
+
+        # Weights (fixed)
+        # Use numpy for matrix generation, seeded from self.rng
+        seed = self.rng.randint(0, 2**32 - 1)
+        rs = _np.random.RandomState(seed)
+        self._W_in = (rs.rand(self._res_size, 6) - 0.5) * 2 * self._input_scaling
+
+        # Recurrent weights (sparse)
+        W = rs.rand(self._res_size, self._res_size) - 0.5
+        # Normalize spectral radius
+        radius = max(abs(_np.linalg.eigvals(W)))
+        self._W = W * (self._spectral_radius / radius)
+
+        # State
+        self._x = _np.zeros(self._res_size)
+
+        # History buffers for training (sliding window)
+        self._X_history = []
+        self._Y_history = []
+        self._window_size = 100
+
+        # Readout weights (trained) - initialize randomly to break symmetry
+        self._W_out = (rs.rand(3, self._res_size) - 0.5) * 0.1
+
+    def _train_readout(self):
+        """Update linear readout using Ridge Regression on recent history."""
+        if len(self._X_history) < 10:
+            return
+
+        X = _np.array(self._X_history)  # (N, res_size)
+        Y = _np.array(self._Y_history)  # (N, 3) - one-hot targets
+
+        # Ridge Regression: W_out = Y.T * X * (X.T * X + alpha * I)^-1
+        # Transpose for easier calculation: W_out matches shape (3, res_size)
+        # Using pseudo-inverse or solve is better
+        # For simplicity: W_out = (X.T X + alpha I)^-1 X.T Y
+
+        N, D = X.shape
+        # Add regularization
+        XTX = X.T @ X + self._ridge_alpha * _np.eye(D)
+        XTY = X.T @ Y
+
+        try:
+            # Use pseudo-inverse for better stability
+            self._W_out = _np.linalg.pinv(XTX) @ XTY
+            self._W_out = self._W_out.T
+        except _np.linalg.LinAlgError:
+            pass  # Keep old weights if singular
+
+    def choose(self, round_num, my_history, opp_history):
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o_prev = self._m2i[opp_history[-1]]
+            self._mh.append(m)
+            self._oh.append(o_prev)
+
+            # Input vector: one-hot my_move + one-hot opp_move
+            u = _np.zeros(6)
+            u[m] = 1
+            u[3 + o_prev] = 1
+
+            # Update reservoir state
+            # x[t] = (1-a)*x[t-1] + a*tanh(W_in*u + W*x[t-1])
+            pre_activation = self._W_in @ u + self._W @ self._x
+            self._x = (1 - self._leak_rate) * self._x + self._leak_rate * _np.tanh(pre_activation)
+
+            # Store for training (target is NEXT opponent move, but we don't know it yet)
+            # Actually, standard ESN trains on x[t] -> y[t+1].
+            # So at round t, we have x[t] and we observe o[t].
+            # We want to predict o[t+1].
+            # So we pair x[t-1] with target o[t].
+            if round_num > 0:
+                self._X_history.append(self._x_prev)
+                target = _np.zeros(3)
+                target[o_prev] = 1
+                self._Y_history.append(target)
+
+                if len(self._X_history) > self._window_size:
+                    self._X_history.pop(0)
+                    self._Y_history.pop(0)
+
+                # Retrain every 10 rounds
+                if round_num % 10 == 0:
+                    self._train_readout()
+
+            self._x_prev = self._x.copy()
+
+        # Initial rounds
+        if round_num < 15:
+            self._x_prev = self._x.copy() # Needed for first training step
+            return self.rng.choice(MOVES)
+
+        # Predict next opponent move
+        # y = W_out * x[t]
+        y_pred = self._W_out @ self._x  # (3,)
+
+        # Softmax-ish selection
+        predicted = int(_np.argmax(y_pred))
+
+        # Counter it
+        return self._i2m[(predicted + 1) % 3]
+
+
+# ---------------------------------------------------------------------------
+# 88: The Collective — Boosting Ensemble
+# ---------------------------------------------------------------------------
+
+class TheCollective(Algorithm):
+    """Boosting-inspired ensemble.
+
+    Instead of simple voting, it maintains weights for each past round based
+    on validation error. Predictors are weighted by their performance on
+    'hard' rounds (where the ensemble previously failed).
+    """
+    name = "The Collective"
+
+    def reset(self):
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._oh = []
+        self._mh = []
+
+        # Weak learners
+        # 1. Markov-1
+        # 2. HM-depth-3
+        # 3. Frequency (most frequent)
+        # 4. Anti-Frequency
+        # 5. Rotation
+        # 6. Random (essential for breaking anti-prediction)
+        self._n_predictors = 6
+        self._predictor_weights = _np.ones(self._n_predictors)
+
+        # Instance weights (one per round history)
+        # We keep only last 50 rounds to be adaptive
+        self._round_weights = []  # list of floats
+        self._last_predictions = _np.zeros(self._n_predictors, dtype=int)
+
+        # Predictor states
+        self._trans1 = _np.ones((3, 3))
+
+    def _get_weak_predictions(self):
+        oh = self._oh
+        mh = self._mh
+        preds = _np.full(self._n_predictors, -1, dtype=int)
+
+        # 1. Markov-1
+        if oh:
+            preds[0] = int(_np.argmax(self._trans1[oh[-1]]))
+
+        # 2. HM-depth-3
+        if len(oh) > 3:
+            pattern = oh[-3:]
+            for i in range(len(oh) - 4, -1, -1):
+                if oh[i:i+3] == pattern:
+                    if i+3 < len(oh):
+                        preds[1] = oh[i+3]
+                    break
+
+        # 3. Frequency
+        if oh:
+            freq = _np.zeros(3)
+            for m in oh: freq[m] += 1
+            preds[2] = int(_np.argmax(freq))
+
+        # 4. Anti-Frequency
+        if len(mh) > 2:
+            freq = _np.zeros(3)
+            for m in mh: freq[m] += 1
+            # Opponent counters my most frequent -> (argmax + 1)%3
+            # I counter that -> +1 again
+            preds[3] = (int(_np.argmax(freq)) + 2) % 3
+
+        # 5. Rotation
+        if oh:
+            preds[4] = (oh[-1] + 1) % 3
+
+        # 6. Random
+        preds[5] = self.rng.randint(0, 2)
+
+        return preds
+
+    def choose(self, round_num, my_history, opp_history):
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o = self._m2i[opp_history[-1]]
+            self._mh.append(m)
+            self._oh.append(o)
+
+            # Update Markov
+            if len(self._oh) >= 2:
+                self._trans1[self._oh[-2]][o] += 1
+
+            # Update weights based on last round's predictions
+            if self._last_predictions[0] != -1: # if we made predictions
+                # Did the ensemble win efficiently?
+                # Actually, "Boosting" updates predictor weights based on their error
+                # weighted by instance difficulty.
+
+                # Instance weight for this round
+                # Start with 1.0. If we lost, increase it.
+                w_t = 1.0
+                if (m - o) % 3 != 1: # Lost or Draw
+                    w_t = 2.0
+
+                self._round_weights.append(w_t)
+                if len(self._round_weights) > 50:
+                    self._round_weights.pop(0)
+
+                # Check which predictors were correct (predicted 'o')
+                correct = (self._last_predictions == o)
+
+                # Update predictor weights
+                # Increase weight if correct, decrease if wrong
+                # Multiplicative update
+                for i in range(self._n_predictors):
+                    if correct[i]:
+                        self._predictor_weights[i] *= 1.1 * w_t
+                    else:
+                        self._predictor_weights[i] *= 0.9
+
+                # Normalize weights to prevent explosion
+                self._predictor_weights /= self._predictor_weights.sum()
+
+        if round_num < 5:
+            return self.rng.choice(MOVES)
+
+        preds = self._get_weak_predictions()
+        self._last_predictions = preds
+
+        # Weighted Vote
+        opp_probs = _np.zeros(3)
+        for i in range(self._n_predictors):
+            if preds[i] >= 0:
+                opp_probs[preds[i]] += self._predictor_weights[i]
+
+        predicted = int(_np.argmax(opp_probs))
+
+        # Counter
+        return self._i2m[(predicted + 1) % 3]
+
+
+# ---------------------------------------------------------------------------
+# 89: The Mirror World — Recursive Simulation
+# ---------------------------------------------------------------------------
+
+class TheMirrorWorld(Algorithm):
+    """Recursive Simulation (Level-k thinking).
+
+    Simulates an opponent model trying to predict US.
+    Level 0: Random
+    Level 1: Opponent counters my most likely move (Freq/Markov)
+    Level 2: I counter Level 1
+    Level 3: I counter Opponent countering Level 2
+
+    Dynamically selects best depth based on performance.
+    """
+    name = "The Mirror World"
+
+    def reset(self):
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._oh = []
+        self._mh = []
+
+        # Track score of each depth strategy
+        self._depth_scores = _np.zeros(4) # Depths 0, 1, 2, 3
+        self._decay = 0.9
+
+        # Simple models for simulation
+        self._my_trans = _np.ones((3, 3))
+        self._opp_trans = _np.ones((3, 3))
+
+    def _predict_move(self, hist, trans_table):
+        """Predict next move from history using Markov."""
+        if not hist: return self.rng.randint(0, 2)
+        return int(_np.argmax(trans_table[hist[-1]]))
+
+    def choose(self, round_num, my_history, opp_history):
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o = self._m2i[opp_history[-1]]
+            self._mh.append(m)
+            self._oh.append(o)
+
+            # Update models
+            if len(self._mh) >= 2:
+                self._my_trans[self._mh[-2]][self._mh[-1]] += 1
+            if len(self._oh) >= 2:
+                self._opp_trans[self._oh[-2]][self._oh[-1]] += 1
+
+            # Score depths
+            # Re-calculate what each depth WOULD have played last round
+            # to update scores
+            # (Skipped for brevity/speed, only scoring based on current play is risky but ok)
+            pass
+
+        # Generate moves for each depth
+
+        # Depth 0: Opponent is Random
+        # Best response: Random (Nash)
+        # Note: If opponent is truly random, any move is equal.
+        # But we treat Depth 0 as "assume opponent plays random, so we play random"
+        # Actually, "Level 0" usually means "I play random".
+        d0_move = self.rng.randint(0, 2)
+
+        # Depth 1: Level-1 Opponent
+        # Opponent thinks I am Level-0 (Frequency/Markov biased).
+        # Opponent predicts ME.
+        pred_my_move = 0
+        if self._mh:
+             pred_my_move = self._predict_move(self._mh, self._my_trans)
+        else:
+             pred_my_move = self.rng.randint(0, 2)
+
+        # Opponent plays counter to my predicted move
+        opp_d1_move = (pred_my_move + 1) % 3
+
+        # I play counter to that
+        d1_move = (opp_d1_move + 1) % 3
+
+        # Depth 2: Level-2 Opponent
+        # Opponent thinks I am Level-1.
+        # So Opponent expects me to play `d1_move`.
+        # Opponent plays counter to `d1_move`.
+        opp_d2_move = (d1_move + 1) % 3
+
+        # I play counter to that
+        d2_move = (opp_d2_move + 1) % 3
+
+        # Depth 3: Level-3 Opponent
+        # Opponent thinks I am Level-2.
+        # Opponent expects me to play `d2_move`.
+        opp_d3_move = (d2_move + 1) % 3
+
+        # I play counter
+        d3_move = (opp_d3_move + 1) % 3
+
+        moves = [d0_move, d1_move, d2_move, d3_move]
+
+        # Update scores (virtual play)
+        if round_num > 0:
+            actual_opp = self._oh[-1]
+            # Scoring: did the depth's move win?
+            for i in range(4):
+                move = self._last_moves[i]
+                if (move - actual_opp) % 3 == 1:
+                    self._depth_scores[i] += 1.0
+                elif (actual_opp - move) % 3 == 1:
+                    self._depth_scores[i] -= 1.0
+                self._depth_scores[i] *= self._decay
+
+        self._last_moves = moves
+
+        # Select best depth
+        best_depth = int(_np.argmax(self._depth_scores))
+
+        # Epsilon-greedy exploration
+        if self.rng.random() < 0.1:
+            best_depth = self.rng.randint(0, 3) # 0 to 3 inclusive
+
+        return self._i2m[moves[best_depth]]
+
+
+# ---------------------------------------------------------------------------
 # 82: The Omniscient — ultimate competition algorithm
 # ---------------------------------------------------------------------------
 
@@ -6921,6 +7310,8 @@ ALL_ALGORITHM_CLASSES = [
     TheOmniscient,
     # Novel Algorithms (83-86)
     TheDoppelganger, TheVoid, TheArchitect, SuperOmniscient,
+    # Supreme Algorithms (87-89)
+    TheTimeTraveler, TheCollective, TheMirrorWorld,
 ]
 
 
