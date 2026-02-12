@@ -5925,7 +5925,958 @@ class TheOmniscient(Algorithm):
 
 
 
+
+# ---------------------------------------------------------------------------
+# 83: The Doppelganger — Bayesian Online Change-Point Detection
+# ---------------------------------------------------------------------------
+
+class TheDoppelganger(Algorithm):
+    """Detects when opponent switches strategy mid-match using Bayesian
+    Online Change-Point Detection (Adams & MacKay 2007).
+
+    Only uses data since the last detected change point for prediction.
+    This handles adaptive opponents that switch strategies mid-match —
+    a problem no other bot in the pool addresses.
+    """
+    name = "The Doppelganger"
+
+    def reset(self):
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._oh = []
+        self._mh = []
+
+        # Change-point detection
+        self._hazard = 1.0 / 25.0  # Expected run length ~ 25 rounds
+        self._run_length_probs = _np.array([1.0])  # P(run_length = r)
+        self._change_point = 0  # Index of last detected change point
+        self._cp_threshold = 0.4  # Probability mass at r=0 to trigger CP
+
+        # Markov models (reset after change point)
+        self._trans1 = _np.ones((3, 3))
+        self._trans2 = _np.ones((9, 3))
+        self._pair1 = _np.ones((9, 3))
+
+        # Full-history fallback
+        self._full_trans1 = _np.ones((3, 3))
+
+        # Predictor scoring (like Phantom)
+        self._n_preds = 20
+        self._scores = _np.zeros(self._n_preds)
+        self._predictions = _np.full(self._n_preds, -1, dtype=int)
+        self._decay = 0.94
+
+    def _update_changepoint(self, obs):
+        """Bayesian online change-point detection step."""
+        n = len(self._run_length_probs)
+
+        # Predictive probability under each run length
+        pred_probs = _np.full(n, 1.0 / 3.0)  # Uniform prior for short runs
+
+        # For runs > 3, use empirical frequency
+        if n > 3:
+            recent_start = max(0, len(self._oh) - n)
+            recent = self._oh[recent_start:]
+            if len(recent) > 3:
+                freq = _np.zeros(3)
+                for m in recent[-min(len(recent), 15):]:
+                    freq[m] += 1
+                freq += 0.5
+                freq /= freq.sum()
+                for r in range(3, n):
+                    pred_probs[r] = freq[obs]
+
+        # Growth probabilities
+        growth = self._run_length_probs * pred_probs * (1 - self._hazard)
+
+        # Change-point probability (all mass that "dies")
+        cp_prob = (self._run_length_probs * pred_probs * self._hazard).sum()
+
+        # New run length distribution
+        new_probs = _np.zeros(n + 1)
+        new_probs[0] = cp_prob
+        new_probs[1:] = growth
+
+        # Normalize
+        total = new_probs.sum()
+        if total > 0:
+            new_probs /= total
+
+        # Truncate to avoid unbounded growth (keep last 50)
+        if len(new_probs) > 50:
+            new_probs = new_probs[-50:]
+            total = new_probs.sum()
+            if total > 0:
+                new_probs /= total
+
+        self._run_length_probs = new_probs
+
+        # Detect change point
+        if new_probs[0] > self._cp_threshold:
+            self._change_point = len(self._oh)
+            self._trans1 = _np.ones((3, 3))
+            self._trans2 = _np.ones((9, 3))
+            self._pair1 = _np.ones((9, 3))
+
+    def _find_match(self, history, length):
+        n = len(history)
+        if n <= length:
+            return -1
+        pattern = history[-length:]
+        for i in range(n - length - 1, -1, -1):
+            if history[i:i + length] == pattern:
+                pos = i + length
+                if pos < n:
+                    return history[pos]
+        return -1
+
+    def _generate_predictions(self):
+        preds = self._predictions
+        preds[:] = -1
+
+        # Use data since change point
+        cp = self._change_point
+        oh_recent = self._oh[cp:]
+        mh_recent = self._mh[cp:]
+
+        # History match on recent (depths 1-8)
+        for d in range(1, 9):
+            if len(oh_recent) > d:
+                preds[d - 1] = self._find_match(oh_recent, d)
+
+        # Markov on recent data
+        if oh_recent:
+            preds[8] = int(_np.argmax(self._trans1[oh_recent[-1]]))
+        if len(oh_recent) >= 2:
+            st = oh_recent[-2] * 3 + oh_recent[-1]
+            preds[9] = int(_np.argmax(self._trans2[st]))
+        if oh_recent and mh_recent:
+            pair = mh_recent[-1] * 3 + oh_recent[-1]
+            preds[10] = int(_np.argmax(self._pair1[pair]))
+
+        # Full-history predictors (safety net)
+        oh = self._oh
+        mh = self._mh
+        if oh:
+            preds[11] = int(_np.argmax(self._full_trans1[oh[-1]]))
+        for d in [1, 3, 5, 8]:
+            if len(oh) > d:
+                preds[11 + [1,3,5,8].index(d) + 1] = self._find_match(oh, d)
+
+        # Rotation
+        if oh:
+            for r in range(3):
+                preds[16 + r] = (oh[-1] + r) % 3
+
+        # Anti-frequency
+        if mh and len(mh) > 3:
+            freq = _np.zeros(3)
+            for m in mh:
+                freq[m] += 1
+            preds[19] = (int(_np.argmax(freq)) + 1) % 3
+
+        return preds
+
+    def choose(self, round_num, my_history, opp_history):
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o = self._m2i[opp_history[-1]]
+            self._mh.append(m)
+            self._oh.append(o)
+
+            # Score predictors
+            for i in range(self._n_preds):
+                p = self._predictions[i]
+                if p >= 0:
+                    if p == o:
+                        self._scores[i] += 1.0
+                    elif (p + 1) % 3 == o:
+                        self._scores[i] -= 0.5
+                    self._scores[i] *= self._decay
+
+            # Update Markov (recent window)
+            cp = self._change_point
+            oh_r = self._oh[cp:]
+            if len(oh_r) >= 2:
+                self._trans1[oh_r[-2]][o] += 1
+                self._full_trans1[self._oh[-2]][o] += 1
+            if len(oh_r) >= 3:
+                self._trans2[oh_r[-3] * 3 + oh_r[-2]][o] += 1
+            mh_r = self._mh[cp:]
+            if len(mh_r) >= 2 and len(oh_r) >= 2:
+                self._pair1[mh_r[-2] * 3 + oh_r[-2]][o] += 1
+
+            # Change-point detection
+            self._update_changepoint(o)
+
+        if round_num < 1:
+            return self.rng.choice(MOVES)
+
+        preds = self._generate_predictions()
+        valid = preds >= 0
+        if not _np.any(valid):
+            return self.rng.choice(MOVES)
+
+        vs = self._scores[valid]
+        vp = preds[valid]
+
+        centered = (vs - vs.max()) / 0.3
+        centered = _np.clip(centered, -20, 0)
+        w = _np.exp(centered)
+        w /= w.sum()
+
+        opp_probs = _np.zeros(3)
+        for pv, wt in zip(vp, w):
+            opp_probs[int(pv)] += wt
+
+        predicted = int(_np.argmax(opp_probs))
+        confidence = opp_probs[predicted]
+
+        if confidence < 0.38:
+            if self.rng.random() < 0.2:
+                return self.rng.choice(MOVES)
+
+        return self._i2m[(predicted + 1) % 3]
+
+
+# ---------------------------------------------------------------------------
+# 84: The Void — Information-Theoretic Anti-Prediction
+# ---------------------------------------------------------------------------
+
+class TheVoid(Algorithm):
+    """Measures mutual information between our moves and opponent's
+    response to detect if they're reading us.
+
+    High MI → they're predicting us → inject entropy
+    Low MI → we're invisible → exploit aggressively
+    Also monitors opponent's entropy — low entropy = predictable
+    """
+    name = "The Void"
+
+    def reset(self):
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._oh = []
+        self._mh = []
+
+        # MI tracking
+        self._window = 20
+        self._mi_threshold = 0.15  # bits
+        self._being_read = False
+
+        # Ensemble (same as Phantom-lite)
+        self._hm_depths = 15
+        self._n_hm = self._hm_depths * 3
+        self._trans1 = _np.ones((3, 3))
+        self._trans2 = _np.ones((9, 3))
+        self._pair1 = _np.ones((9, 3))
+        self._n_markov = 3
+        self._n_rotation = 6
+        self._wld_trans = _np.ones((3, 3))
+        self._n_special = 3
+        self._n_total = self._n_hm + self._n_markov + self._n_rotation + self._n_special
+        self._scores = _np.zeros(self._n_total)
+        self._predictions = _np.full(self._n_total, -1, dtype=int)
+        self._decay = 0.94
+
+    def _compute_mi(self):
+        """Compute mutual information I(our_move; opp_next_move) in recent window."""
+        if len(self._mh) < self._window + 1:
+            return 0.0
+
+        # Pairs: (our_move[t], opp_move[t+1])
+        w = self._window
+        my_recent = self._mh[-w - 1:-1]
+        opp_next = self._oh[-w:]
+
+        # Joint and marginal distributions
+        joint = _np.zeros((3, 3))
+        for m, o in zip(my_recent, opp_next):
+            joint[m][o] += 1
+        joint += 0.01  # smoothing
+        joint /= joint.sum()
+
+        p_my = joint.sum(axis=1)
+        p_opp = joint.sum(axis=0)
+
+        mi = 0.0
+        for i in range(3):
+            for j in range(3):
+                if joint[i][j] > 0:
+                    mi += joint[i][j] * _np.log2(joint[i][j] / (p_my[i] * p_opp[j]))
+        return max(mi, 0.0)
+
+    def _opp_entropy(self):
+        """Compute opponent's recent move entropy."""
+        if len(self._oh) < 10:
+            return _np.log2(3)
+        recent = self._oh[-20:]
+        freq = _np.zeros(3)
+        for m in recent:
+            freq[m] += 1
+        freq += 0.01
+        freq /= freq.sum()
+        return -sum(f * _np.log2(f) for f in freq if f > 0)
+
+    def _find_match(self, history, length):
+        n = len(history)
+        if n <= length:
+            return -1
+        pattern = history[-length:]
+        for i in range(n - length - 1, -1, -1):
+            if history[i:i + length] == pattern:
+                pos = i + length
+                if pos < n:
+                    return history[pos]
+        return -1
+
+    def _generate_predictions(self):
+        oh = self._oh
+        mh = self._mh
+        preds = self._predictions
+        preds[:] = -1
+
+        for d in range(1, self._hm_depths + 1):
+            if len(oh) > d:
+                preds[d - 1] = self._find_match(oh, d)
+        for d in range(1, self._hm_depths + 1):
+            if len(mh) > d and len(oh) > d:
+                for i in range(len(mh) - d - 1, -1, -1):
+                    if mh[i:i + d] == mh[-d:]:
+                        pos = i + d
+                        if pos < len(oh):
+                            preds[self._hm_depths + d - 1] = oh[pos]
+                        break
+        if oh and mh:
+            combined = [m * 3 + o for m, o in zip(mh, oh)]
+            for d in range(1, self._hm_depths + 1):
+                if len(combined) > d:
+                    for i in range(len(combined) - d - 1, -1, -1):
+                        if combined[i:i + d] == combined[-d:]:
+                            pos = i + d
+                            if pos < len(oh):
+                                preds[2 * self._hm_depths + d - 1] = oh[pos]
+                            break
+
+        base = self._n_hm
+        if oh:
+            preds[base] = int(_np.argmax(self._trans1[oh[-1]]))
+        if len(oh) >= 2:
+            preds[base + 1] = int(_np.argmax(self._trans2[oh[-2] * 3 + oh[-1]]))
+        if oh and mh:
+            preds[base + 2] = int(_np.argmax(self._pair1[mh[-1] * 3 + oh[-1]]))
+
+        base += self._n_markov
+        if oh:
+            for r in range(3):
+                preds[base + r] = (oh[-1] + r) % 3
+        if mh:
+            for r in range(3):
+                preds[base + 3 + r] = (mh[-1] + r) % 3
+
+        base += self._n_rotation
+        if mh and len(mh) > 5:
+            freq = _np.zeros(3)
+            for m in mh:
+                freq[m] += 1
+            preds[base] = (int(_np.argmax(freq)) + 1) % 3
+        if mh and oh:
+            m_l, o_l = mh[-1], oh[-1]
+            outcome = 0 if (m_l - o_l) % 3 == 1 else (1 if (o_l - m_l) % 3 == 1 else 2)
+            preds[base + 1] = int(_np.argmax(self._wld_trans[outcome]))
+        if len(oh) >= 6:
+            for p in [2, 3, 4, 5]:
+                if len(oh) >= p * 2 and oh[-p:] == oh[-p * 2:-p]:
+                    preds[base + 2] = oh[-p]
+                    break
+
+        return preds
+
+    def choose(self, round_num, my_history, opp_history):
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o = self._m2i[opp_history[-1]]
+            self._mh.append(m)
+            self._oh.append(o)
+
+            for i in range(self._n_total):
+                p = self._predictions[i]
+                if p >= 0:
+                    if p == o:
+                        self._scores[i] += 1.0
+                    elif (p + 1) % 3 == o:
+                        self._scores[i] -= 0.5
+                    self._scores[i] *= self._decay
+
+            if len(self._oh) >= 2:
+                self._trans1[self._oh[-2]][o] += 1
+            if len(self._oh) >= 3:
+                self._trans2[self._oh[-3] * 3 + self._oh[-2]][o] += 1
+            if len(self._mh) >= 2 and len(self._oh) >= 2:
+                self._pair1[self._mh[-2] * 3 + self._oh[-2]][o] += 1
+            if (m - o) % 3 == 1:
+                self._wld_trans[0][o] += 1
+            elif (o - m) % 3 == 1:
+                self._wld_trans[1][o] += 1
+            else:
+                self._wld_trans[2][o] += 1
+
+        if round_num < 1:
+            return self.rng.choice(MOVES)
+
+        # Compute mutual information every 5 rounds
+        if round_num % 5 == 0 and round_num >= self._window:
+            mi = self._compute_mi()
+            self._being_read = mi > self._mi_threshold
+
+        # If being read → high entropy play
+        if self._being_read:
+            # Still try to predict, but inject more noise
+            preds = self._generate_predictions()
+            valid = preds >= 0
+            if _np.any(valid):
+                vs = self._scores[valid]
+                best_idx = int(_np.argmax(vs))
+                best_pred = preds[valid][best_idx]
+                if vs[best_idx] > 2.0 and self.rng.random() > 0.5:
+                    return self._i2m[(int(best_pred) + 1) % 3]
+            return self.rng.choice(MOVES)
+
+        # Normal exploitation mode
+        preds = self._generate_predictions()
+        valid = preds >= 0
+        if not _np.any(valid):
+            return self.rng.choice(MOVES)
+
+        vs = self._scores[valid]
+        vp = preds[valid]
+
+        centered = (vs - vs.max()) / 0.3
+        centered = _np.clip(centered, -20, 0)
+        w = _np.exp(centered)
+        w /= w.sum()
+
+        opp_probs = _np.zeros(3)
+        for pv, wt in zip(vp, w):
+            opp_probs[int(pv)] += wt
+
+        predicted = int(_np.argmax(opp_probs))
+        confidence = opp_probs[predicted]
+        if confidence < 0.38:
+            if self.rng.random() < 0.25:
+                return self.rng.choice(MOVES)
+
+        return self._i2m[(predicted + 1) % 3]
+
+
+# ---------------------------------------------------------------------------
+# 85: The Architect — Strategy-Space Bandit
+# ---------------------------------------------------------------------------
+
+class TheArchitect(Algorithm):
+    """Multi-armed bandit over 12 COMPLETE STRATEGIES, not individual moves.
+
+    Uses Thompson Sampling to select which strategy to follow each round.
+    Fundamentally different from ensemble voting — commits fully to one
+    strategy per round and adapts which one to trust.
+    """
+    name = "The Architect"
+
+    def reset(self):
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._oh = []
+        self._mh = []
+
+        # 12 strategy arms
+        self._n_strategies = 12
+        self._alpha = _np.ones(self._n_strategies) * 2.0  # Prior successes
+        self._beta = _np.ones(self._n_strategies) * 2.0   # Prior failures
+        self._last_strategy = -1
+        self._last_move = -1
+
+        # Markov tables for strategies that need them
+        self._trans1 = _np.ones((3, 3))
+        self._trans2 = _np.ones((9, 3))
+
+    def _strategy_move(self, strategy_id):
+        """Execute a specific strategy and return the move (as int)."""
+        oh = self._oh
+        mh = self._mh
+
+        if strategy_id == 0:
+            # Counter opponent's last move
+            if oh:
+                return (oh[-1] + 1) % 3
+            return self.rng.integers(3)
+
+        elif strategy_id == 1:
+            # Counter opponent's most frequent
+            if oh and len(oh) > 3:
+                freq = _np.zeros(3)
+                for m in oh:
+                    freq[m] += 1
+                return (int(_np.argmax(freq)) + 1) % 3
+            return self.rng.integers(3)
+
+        elif strategy_id == 2:
+            # Copy opponent (play same)
+            if oh:
+                return oh[-1]
+            return self.rng.integers(3)
+
+        elif strategy_id == 3:
+            # Markov-1 counter
+            if oh:
+                pred = int(_np.argmax(self._trans1[oh[-1]]))
+                return (pred + 1) % 3
+            return self.rng.integers(3)
+
+        elif strategy_id == 4:
+            # Markov-2 counter
+            if len(oh) >= 2:
+                st = oh[-2] * 3 + oh[-1]
+                pred = int(_np.argmax(self._trans2[st]))
+                return (pred + 1) % 3
+            return self.rng.integers(3)
+
+        elif strategy_id == 5:
+            # De Bruijn counter (cycle through all 3)
+            if oh:
+                return (oh[-1] + 2) % 3
+            return 0
+
+        elif strategy_id == 6:
+            # Win-stay Lose-shift
+            if mh and oh:
+                m, o = mh[-1], oh[-1]
+                if (m - o) % 3 == 1:
+                    return m  # Won → stay
+                return (m + 1) % 3  # Lost/draw → shift
+            return self.rng.integers(3)
+
+        elif strategy_id == 7:
+            # Anti-frequency (counter their counter to our most-played)
+            if mh and len(mh) > 3:
+                freq = _np.zeros(3)
+                for m in mh:
+                    freq[m] += 1
+                my_most = int(_np.argmax(freq))
+                their_counter = (my_most + 1) % 3
+                return (their_counter + 1) % 3
+            return self.rng.integers(3)
+
+        elif strategy_id == 8:
+            # Pattern match depth 3
+            if len(oh) > 3:
+                pattern = oh[-3:]
+                for i in range(len(oh) - 4, -1, -1):
+                    if oh[i:i + 3] == pattern:
+                        pos = i + 3
+                        if pos < len(oh):
+                            return (oh[pos] + 1) % 3
+            return self.rng.integers(3)
+
+        elif strategy_id == 9:
+            # Pattern match depth 5
+            if len(oh) > 5:
+                pattern = oh[-5:]
+                for i in range(len(oh) - 6, -1, -1):
+                    if oh[i:i + 5] == pattern:
+                        pos = i + 5
+                        if pos < len(oh):
+                            return (oh[pos] + 1) % 3
+            return self.rng.integers(3)
+
+        elif strategy_id == 10:
+            # Nash (uniform random)
+            return self.rng.integers(3)
+
+        elif strategy_id == 11:
+            # Anti-last-own: counter what beats our last move
+            if mh:
+                what_beats_me = (mh[-1] + 1) % 3
+                return (what_beats_me + 1) % 3
+            return self.rng.integers(3)
+
+        return self.rng.integers(3)
+
+    def choose(self, round_num, my_history, opp_history):
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o = self._m2i[opp_history[-1]]
+            self._mh.append(m)
+            self._oh.append(o)
+
+            # Update Markov tables
+            if len(self._oh) >= 2:
+                self._trans1[self._oh[-2]][o] += 1
+            if len(self._oh) >= 3:
+                self._trans2[self._oh[-3] * 3 + self._oh[-2]][o] += 1
+
+            # Reward/punish last strategy
+            if self._last_strategy >= 0:
+                if (m - o) % 3 == 1:
+                    self._alpha[self._last_strategy] += 1.0
+                elif (o - m) % 3 == 1:
+                    self._beta[self._last_strategy] += 1.0
+                else:
+                    self._alpha[self._last_strategy] += 0.3
+                    self._beta[self._last_strategy] += 0.3
+
+        # Thompson Sampling: sample from each Beta distribution
+        samples = _np.array([
+            self.rng.beta(self._alpha[i], self._beta[i])
+            for i in range(self._n_strategies)
+        ])
+
+        # Select best strategy
+        best = int(_np.argmax(samples))
+        self._last_strategy = best
+
+        move = self._strategy_move(best)
+        self._last_move = move
+        return self._i2m[int(move)]
+
+
+# ---------------------------------------------------------------------------
+# 86: Super Omniscient — Fixed + Enhanced Omniscient
+# ---------------------------------------------------------------------------
+
+class SuperOmniscient(Algorithm):
+    """Fixed Omniscient with proven Phantom Ensemble parameters.
+
+    Fixes over The Omniscient:
+    1. Temperature 0.3 (not 0.2) — prevents over-commitment
+    2. Conservative metadata biasing (+1.5 max, not +4)
+    3. Depth 18 history (not 20 — reduces dilution)
+    4. CTW-inspired context window predictors
+    5. Change-point awareness (halves scores on regime shift)
+    6. Same decay/noise as Phantom Ensemble (0.94, 25% at <0.38)
+    """
+    name = "Super Omniscient"
+
+    def reset(self):
+        self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
+        self._i2m = {0: Move.ROCK, 1: Move.PAPER, 2: Move.SCISSORS}
+        self._oh = []
+        self._mh = []
+        self._my_wins = 0
+        self._opp_wins = 0
+
+        # History match: depth 1-18 × 3 = 54
+        self._hm_depths = 18
+        self._n_hm = self._hm_depths * 3
+
+        # Markov
+        self._trans_opp1 = _np.ones((3, 3))
+        self._trans_opp2 = _np.ones((9, 3))
+        self._trans_opp3 = _np.ones((27, 3))
+        self._trans_pair1 = _np.ones((9, 3))
+        self._trans_pair2 = _np.ones((81, 3))
+        self._trans_my1 = _np.ones((3, 3))
+        self._n_markov = 6
+
+        self._n_rotation = 6
+
+        # Special: anti-freq, WLD, cycle, LZ-context, decay-freq,
+        #          CTW-context, change-point-decay-freq
+        self._wld_trans = _np.ones((3, 3))
+        self._n_special = 7
+
+        self._n_total = self._n_hm + self._n_markov + self._n_rotation + self._n_special
+        # = 54 + 6 + 6 + 7 = 73
+
+        self._scores = _np.zeros(self._n_total)
+        self._predictions = _np.full(self._n_total, -1, dtype=int)
+        self._decay = 0.94  # Same as Phantom
+
+        self._decay_freq = _np.zeros(3)
+        self._freq_decay = 0.9
+
+        # Change-point detection (simplified)
+        self._recent_wins = 0
+        self._recent_losses = 0
+        self._regime_shift_count = 0
+
+        # CTW context tables (depth 2 and 3)
+        self._ctw2 = {}  # {(oh[-2], oh[-1]): [counts for 0,1,2]}
+        self._ctw3 = {}
+
+    def set_match_context(self, opponent_name, opponent_history):
+        if not opponent_name and not opponent_history:
+            return
+        nl = (opponent_name or "").lower()
+
+        # Conservative biasing (+1.5 max, not +4)
+        if any(w in nl for w in ['always', 'constant', 'fixed', 'intentional']):
+            for i in range(min(5, self._hm_depths)):
+                self._scores[i] += 1.5
+            base = self._n_hm
+            for i in range(self._n_markov):
+                self._scores[base + i] += 1.5
+        elif any(w in nl for w in ['random', 'chaos', 'noise', 'pure']):
+            pass  # No biasing for random
+        elif any(w in nl for w in ['cycle', 'rotation', 'phase', 'bruijn']):
+            for i in range(min(6, self._hm_depths)):
+                self._scores[i] += 1.0
+        elif any(w in nl for w in ['mirror', 'copy', 'tit', 'echo']):
+            for i in range(self._hm_depths, 2 * self._hm_depths):
+                self._scores[i] += 1.0
+        elif any(w in nl for w in ['pattern', 'markov', 'history', 'historian',
+                                   'n-gram', 'sequence']):
+            for i in range(self._hm_depths):
+                self._scores[i] += 1.0
+        elif any(w in nl for w in ['meta', 'iocaine', 'hydra', 'ensemble',
+                                   'phantom', 'omniscient', 'cascad']):
+            base = self._n_hm + self._n_markov
+            for i in range(self._n_rotation):
+                self._scores[base + i] += 1.5
+
+        if opponent_history:
+            wins = sum(1 for r in opponent_history if r.get('result') == 'win')
+            total = max(len(opponent_history), 1)
+            wr = wins / total
+            if wr > 0.7:
+                base = self._n_hm + self._n_markov
+                for i in range(self._n_rotation):
+                    self._scores[base + i] += 1.0
+            elif wr < 0.25:
+                for i in range(min(6, self._n_hm)):
+                    self._scores[i] += 1.0
+
+    def _find_match(self, history, length):
+        n = len(history)
+        if n <= length:
+            return -1
+        pattern = history[-length:]
+        for i in range(n - length - 1, -1, -1):
+            if history[i:i + length] == pattern:
+                pos = i + length
+                if pos < n:
+                    return history[pos]
+        return -1
+
+    def _generate_predictions(self):
+        oh = self._oh
+        mh = self._mh
+        preds = self._predictions
+        preds[:] = -1
+
+        for d in range(1, self._hm_depths + 1):
+            if len(oh) > d:
+                preds[d - 1] = self._find_match(oh, d)
+        for d in range(1, self._hm_depths + 1):
+            if len(mh) > d and len(oh) > d:
+                for i in range(len(mh) - d - 1, -1, -1):
+                    if mh[i:i + d] == mh[-d:]:
+                        pos = i + d
+                        if pos < len(oh):
+                            preds[self._hm_depths + d - 1] = oh[pos]
+                        break
+        if oh and mh:
+            combined = [m * 3 + o for m, o in zip(mh, oh)]
+            for d in range(1, self._hm_depths + 1):
+                if len(combined) > d:
+                    for i in range(len(combined) - d - 1, -1, -1):
+                        if combined[i:i + d] == combined[-d:]:
+                            pos = i + d
+                            if pos < len(oh):
+                                preds[2 * self._hm_depths + d - 1] = oh[pos]
+                            break
+
+        base = self._n_hm
+        if oh:
+            preds[base] = int(_np.argmax(self._trans_opp1[oh[-1]]))
+            if mh:
+                preds[base + 5] = int(_np.argmax(self._trans_my1[mh[-1]]))
+        if len(oh) >= 2:
+            preds[base + 1] = int(_np.argmax(self._trans_opp2[oh[-2] * 3 + oh[-1]]))
+            if mh:
+                preds[base + 3] = int(_np.argmax(self._trans_pair1[mh[-1] * 3 + oh[-1]]))
+        if len(oh) >= 3:
+            st = oh[-3] * 9 + oh[-2] * 3 + oh[-1]
+            if st < 27:
+                preds[base + 2] = int(_np.argmax(self._trans_opp3[st]))
+            if len(mh) >= 2:
+                pair = (mh[-2] * 3 + oh[-2]) * 9 + (mh[-1] * 3 + oh[-1])
+                if pair < 81:
+                    preds[base + 4] = int(_np.argmax(self._trans_pair2[pair]))
+
+        base += self._n_markov
+        if oh:
+            for r in range(3):
+                preds[base + r] = (oh[-1] + r) % 3
+        if mh:
+            for r in range(3):
+                preds[base + 3 + r] = (mh[-1] + r) % 3
+
+        base += self._n_rotation
+
+        # Anti-freq
+        if mh and len(mh) > 3:
+            freq = _np.zeros(3)
+            for m in mh:
+                freq[m] += 1
+            preds[base] = (int(_np.argmax(freq)) + 1) % 3
+
+        # WLD
+        if mh and oh:
+            m_l, o_l = mh[-1], oh[-1]
+            outcome = 0 if (m_l - o_l) % 3 == 1 else (1 if (o_l - m_l) % 3 == 1 else 2)
+            preds[base + 1] = int(_np.argmax(self._wld_trans[outcome]))
+
+        # Cycle
+        if len(oh) >= 6:
+            for p in [2, 3, 4, 5]:
+                if len(oh) >= p * 2 and oh[-p:] == oh[-p * 2:-p]:
+                    preds[base + 2] = oh[-p]
+                    break
+
+        # LZ-context bigram
+        if len(oh) >= 4:
+            ctx = str(oh[-2]) + str(oh[-1])
+            s = ''.join(str(x) for x in oh)
+            bc, bn = 0, -1
+            for nm in range(3):
+                c = s.count(ctx + str(nm))
+                if c > bc:
+                    bc, bn = c, nm
+            if bn >= 0:
+                preds[base + 3] = bn
+
+        # Decay-freq
+        if oh:
+            preds[base + 4] = (int(_np.argmax(self._decay_freq)) + 1) % 3
+
+        # CTW depth-2 context
+        if len(oh) >= 2:
+            ctx2 = (oh[-2], oh[-1])
+            if ctx2 in self._ctw2:
+                counts = self._ctw2[ctx2]
+                preds[base + 5] = int(_np.argmax(counts))
+
+        # CTW depth-3 context
+        if len(oh) >= 3:
+            ctx3 = (oh[-3], oh[-2], oh[-1])
+            if ctx3 in self._ctw3:
+                counts = self._ctw3[ctx3]
+                preds[base + 6] = int(_np.argmax(counts))
+
+        return preds
+
+    def choose(self, round_num, my_history, opp_history):
+        if my_history and opp_history:
+            m = self._m2i[my_history[-1]]
+            o = self._m2i[opp_history[-1]]
+            self._mh.append(m)
+            self._oh.append(o)
+
+            if (m - o) % 3 == 1:
+                self._my_wins += 1
+                self._recent_wins += 1
+            elif (o - m) % 3 == 1:
+                self._opp_wins += 1
+                self._recent_losses += 1
+
+            for i in range(self._n_total):
+                pred = self._predictions[i]
+                if pred >= 0:
+                    if pred == o:
+                        self._scores[i] += 1.0
+                    elif (pred + 1) % 3 == o:
+                        self._scores[i] -= 0.5
+                    self._scores[i] *= self._decay
+
+            # Update Markov
+            if len(self._oh) >= 2:
+                prev = self._oh[-2]
+                self._trans_opp1[prev][o] += 1
+                if len(self._mh) >= 2:
+                    self._trans_my1[self._mh[-2]][o] += 1
+                    pair = self._mh[-2] * 3 + prev
+                    self._trans_pair1[pair][o] += 1
+            if len(self._oh) >= 3:
+                self._trans_opp2[self._oh[-3] * 3 + self._oh[-2]][o] += 1
+            if len(self._oh) >= 4:
+                st = self._oh[-4] * 9 + self._oh[-3] * 3 + self._oh[-2]
+                if st < 27:
+                    self._trans_opp3[st][o] += 1
+                if len(self._mh) >= 3:
+                    pair = (self._mh[-3] * 3 + self._oh[-3]) * 9 + (self._mh[-2] * 3 + self._oh[-2])
+                    if pair < 81:
+                        self._trans_pair2[pair][o] += 1
+            # WLD
+            if (m - o) % 3 == 1:
+                self._wld_trans[0][o] += 1
+            elif (o - m) % 3 == 1:
+                self._wld_trans[1][o] += 1
+            else:
+                self._wld_trans[2][o] += 1
+
+            self._decay_freq *= self._freq_decay
+            self._decay_freq[o] += 1.0
+
+            # CTW update
+            if len(self._oh) >= 3:
+                ctx2 = (self._oh[-3], self._oh[-2])
+                if ctx2 not in self._ctw2:
+                    self._ctw2[ctx2] = _np.ones(3)
+                self._ctw2[ctx2][o] += 1
+            if len(self._oh) >= 4:
+                ctx3 = (self._oh[-4], self._oh[-3], self._oh[-2])
+                if ctx3 not in self._ctw3:
+                    self._ctw3[ctx3] = _np.ones(3)
+                self._ctw3[ctx3][o] += 1
+
+        # Change-point detection every 12 rounds
+        if round_num > 0 and round_num % 12 == 0:
+            if self._recent_losses > self._recent_wins + 4:
+                # Regime shift detected — halve all scores to forget
+                self._scores *= 0.5
+                self._regime_shift_count += 1
+            self._recent_wins = 0
+            self._recent_losses = 0
+
+        if round_num < 1:
+            return self.rng.choice(MOVES)
+
+        # Safety: Nash when losing badly
+        if round_num > 20 and self._opp_wins - self._my_wins > 12:
+            return self.rng.choice(MOVES)
+
+        preds = self._generate_predictions()
+        valid_mask = preds >= 0
+        if not _np.any(valid_mask):
+            return self.rng.choice(MOVES)
+
+        valid_scores = self._scores[valid_mask]
+        valid_preds = preds[valid_mask]
+
+        # Phantom's proven temperature
+        temp = 0.3
+        centered = (valid_scores - valid_scores.max()) / max(temp, 0.01)
+        centered = _np.clip(centered, -20, 0)
+        weights = _np.exp(centered)
+        weights /= weights.sum()
+
+        opp_probs = _np.zeros(3)
+        for pred_val, w in zip(valid_preds, weights):
+            opp_probs[int(pred_val)] += w
+
+        predicted = int(_np.argmax(opp_probs))
+        confidence = opp_probs[predicted]
+
+        # Phantom's proven noise parameters
+        if confidence < 0.38:
+            if self.rng.random() < 0.25:
+                return self.rng.choice(MOVES)
+
+        return self._i2m[(predicted + 1) % 3]
+
+
 ALL_ALGORITHM_CLASSES = [
+
     # Baseline (1-20)
     AlwaysRock, AlwaysPaper, AlwaysScissors,
     PureRandom, Cycle, MirrorOpponent,
@@ -5968,6 +6919,8 @@ ALL_ALGORITHM_CLASSES = [
     HistoryMatcher, BayesEnsemble, GeometryBot, PhantomEnsemble, DecisionCascader,
     # 82: The Omniscient
     TheOmniscient,
+    # Novel Algorithms (83-86)
+    TheDoppelganger, TheVoid, TheArchitect, SuperOmniscient,
 ]
 
 
