@@ -8953,53 +8953,7 @@ class SuperOmniscient(Algorithm):
         return self._i2m[(predicted + 1) % 3]
 
 
-ALL_ALGORITHM_CLASSES = [
-
-    # Baseline (1-20)
-    AlwaysRock, AlwaysPaper, AlwaysScissors,
-    PureRandom, Cycle, PersistentRandom,
-    TitForTat, AntiTitForTat, FrequencyAnalyzer,
-    MarkovPredictor, Spiral, WinStayLoseShift,
-    MetaPredictor, NoiseStrategy, AdaptiveHybrid,
-    LastMoveCounter, WeightedRandom, Punisher,
-    Forgiver, ChaosStrategy,
-    # Creative (21-32)
-    DecayAnalyzer, Historian, ReversePsychologist,
-    Echo, TrojanHorse, ReluctantGambler,
-    EntropyGuardian, SecondGuess, MajorityRule,
-    PhaseShifter, DeBruijnWalker, IocainePowder,
-    # Special (33)
-    IntentionalLoser,
-    # RL / ML v4 (34-37)
-    QLearner, ThompsonSampler, UCBExplorer, GradientLearner,
-    # Advanced Competitive (38-41)
-    BayesianPredictor, NGramPredictor, AntiStrategyDetector, MixtureModel,
-    # Creative / Deception (42-49)
-    SleeperAgent, Shapeshifter, HotStreak, MarkovGenerator,
-    MonteCarloPredictor, GrudgeHolder, Chameleon, FibonacciPlayer,
-    # Math-heavy / Proven Concepts (50-52)
-    LempelZivPredictor, ContextTree, MaxEntropyPredictor,
-    # Trojan / Deception / Weird (53-57)
-    PoisonPill, MirrorBreaker, TheUsurper, DoubleBluff, FrequencyDisruptor,
-    # Upgraded Variants (58-59)
-    DeepHistorian, AdaptiveNGram,
-    # Deep Math / Proven Theory (60-62)
-    RegretMinimizer, FourierPredictor, EigenvaluePredictor,
-    # RL v5: Linear Function Approximation (63-66)
-    QLearnerV5, ThompsonSamplerV5, UCBExplorerV5, GradientLearnerV5,
-    # New-Field Algorithms (67-71)
-    HiddenMarkovOracle, GeneticStrategist, PIDController, ChaosEngine, LevelKReasoner,
-    # Hybrid Fusion (72)
-    UCBNGramFusion,
-    # Upgraded Competitive (73-76)
-    IocainePowderPlus, DynamicMixture, HierarchicalBayesian, SelfModelDetector,
-    # Creative Boost / Logic (77-100)
-    PiBot, GoldenRatio, StockBroker, QuantumCollapse, SoundWave,
-    Ackermann, PrimeHunter, CompressionBot, EquilibriumBreaker, DelayedMirror,
-    GeneSequencer, Zodiac, NeuroEvo, GeometryBot,
-    GamblersFallacy, NashStabilizer, StubbornLoser, TraitorMirror, OpponentPersona,
-    ExponentialBackoff, PatternBreaker, SlidingWindowVote, DoubleAgent, CounterStrike,
-]
+# ALL_ALGORITHM_CLASSES is now dynamically populated at the end of the file.
 # ---------------------------------------------------------------------------
 # 90: The Singularity — The Ultimate Ensemble
 # ---------------------------------------------------------------------------
@@ -9224,7 +9178,38 @@ class Phoenix(SuperOmniscient):
 
         return m_base
 
-ALL_ALGORITHM_CLASSES.extend([TheSingularity, TheBlackHole, Phoenix, TheMirrorWorld])
+# Dynamically register all subclasses of Algorithm as available bots
+ALL_ALGORITHM_CLASSES = [
+    cls for cls in Algorithm.__subclasses__()
+    if hasattr(cls, 'name') and cls.name and cls != Algorithm
+]
+
+# Ensure specific known bots that might be subclasses of subclasses are included
+# or handle them recursively if needed. For now, __subclasses__() only goes 1 level deep.
+# Let's use a recursive helper for safety.
+def _get_all_subclasses(cls):
+    all_subclasses = []
+    for subclass in cls.__subclasses__():
+        all_subclasses.append(subclass)
+        all_subclasses.extend(_get_all_subclasses(subclass))
+    return all_subclasses
+
+ALL_ALGORITHM_CLASSES = [
+    cls for cls in _get_all_subclasses(Algorithm)
+    if hasattr(cls, 'name') and cls.name and cls not in [Algorithm]
+    # Filter out any intermediate base classes if they don't have a concrete implementation
+    and not cls.__name__.endswith('Base')
+]
+
+# Remove duplicates (in case of multiple inheritance, though unlikely here)
+seen = set()
+unique_algos = []
+for cls in ALL_ALGORITHM_CLASSES:
+    if cls.name not in seen:
+        unique_algos.append(cls)
+        seen.add(cls.name)
+ALL_ALGORITHM_CLASSES = unique_algos
+
 
 
 

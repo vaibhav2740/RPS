@@ -895,8 +895,8 @@
     <!-- Particle Background -->
     <div id="particles-bg"></div>
 
-    <!-- SVG Sprite Sheet (hidden) -->
-    <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <!-- SVG Sprite Sheet (hidden but accessible for gradients) -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="position: absolute; width: 0; height: 0; overflow: hidden;" aria-hidden="true">
         <defs>
             <linearGradient id="rpsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stop-color="#06b6d4"/>
@@ -963,7 +963,7 @@
             </div>
             <div class="subtitle-row">
                 <p class="subtitle">Algorithm Battle Arena · Elo Rated</p>
-                <span class="algo-badge"><span class="dot"></span>103 bots</span>
+                <span class="algo-badge"><span class="dot"></span><span id="bot-count-badge">...</span> bots</span>
             </div>
         </header>
 
@@ -1409,6 +1409,7 @@
                 btn.addEventListener('click', () => switchTab(btn.dataset.tab));
             });
 
+            document.getElementById('bot-count-badge').textContent = algorithms.length;
             animateEntrance();
         });
 
