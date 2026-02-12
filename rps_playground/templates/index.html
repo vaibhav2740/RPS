@@ -14,6 +14,12 @@
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/tsparticles-engine@2.12.0/tsparticles.engine.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/tsparticles-slim@2.12.0/tsparticles.slim.bundle.min.js" defer></script>
+    
+    <!-- KaTeX for Math Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous"
+        onload="renderMathInElement(document.body);"></script>
     <style>
         /* ===== RESET & BASE ===== */
         *,
@@ -116,6 +122,19 @@
             position: relative;
             width: 100%;
             font-family: 'Inter', sans-serif;
+        }
+        .tabs {
+            margin: 20px auto 40px;
+            background: rgba(45, 45, 68, 0.4);
+            padding: 10px 40px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            display: flex;
+            gap: 15px;
+            width: fit-content;
+            flex-wrap: wrap;
+            justify-content: center;
         }
         .select-trigger {
             width: 100%;
@@ -401,9 +420,11 @@
             border: 1px solid var(--border-glass);
             border-radius: 14px;
             padding: 5px;
-            max-width: 720px;
+            max-width: 95%; /* Responsive max-width */
+            width: fit-content;
             margin-left: auto;
             margin-right: auto;
+            flex-wrap: wrap; /* Prevent overflow */
         }
 
         .tab-btn {
@@ -2861,6 +2882,17 @@
                 </div>
                 `;
             }).join('');
+
+            // Render math with KaTeX
+            if (window.renderMathInElement) {
+                renderMathInElement(grid, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError : false
+                });
+            }
             
             // Re-animate if visible
             if (document.getElementById('content-library').classList.contains('active')) {

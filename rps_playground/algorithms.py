@@ -235,14 +235,16 @@ class FrequencyAnalyzer(Algorithm):
 # ---------------------------------------------------------------------------
 
 class MarkovPredictor(Algorithm):
-    """Predicts next move based on the previous move (1st-order Markov Chain).
+    r"""Predicts moves using a first-order Markov Chain model.
     
-    Builds a transition matrix tracking `Last Move -> Next Move` probabilities.
-    if you often play Paper after Rock, it will predict Paper when it sees Rock,
-    and play Scissors to counter.
+    This algorithm maintains a transition matrix $M$, where $M_{ij}$ counts how
+    often the opponent played move $j$ immediately after playing move $i$.
+    The predicted next move is:
+    $$\text{argmax}_j \{ P(X_{t+1}=j \mid X_t=i) \}$$
+    where $P(X_{t+1}=j \mid X_t=i) = \frac{M_{ij}}{\sum_k M_{ik}}$.
     
-    **Type**: Pattern / Probability
-    **Order**: 1 (looks back 1 move)
+    **Type**: Pattern / Statistical
+    **Order**: 1 (Last move only)
     """
     name = "Markov Predictor"
     
@@ -788,13 +790,14 @@ class ReluctantGambler(Algorithm):
 # ---------------------------------------------------------------------------
 
 class EntropyGuardian(Algorithm):
-    """Monitors its OWN entropy to avoid becoming predictable.
+    r"""Measures and exploits opponent entropy to detect predictability.
     
-    If its own move distribution becomes too low-entropy (predictable), it
-    forces valid random moves to restore balance. Otherwise, it adapts to the opponent.
+    Calculates the Shannon Entropy $H(X)$ of the opponent's recent move distribution:
+    $$H(X) = -\sum_{i \in \{R, P, S\}} P(x_i) \log_2 P(x_i)$$
+    If entropy is low ($H < 1.2$), it assumes the opponent is highly biased and
+    exploits the dominant move. If high ($H > 1.5$), it falls back to random play.
     
-    **Type**: Defensive / Adaptive
-    **Metric**: Shannon Entropy
+    **Type**: Mathematical / Info Theory
     """
     name = "Entropy Guardian"
 
@@ -1054,7 +1057,7 @@ class IocainePowder(Algorithm):
                 if prev_preds[i] == prev_opp:
                     self._meta_scores[i] += 1.0
 
-        # Pick best meta-strategy's prediction and counter it
+        # Pick the best meta-strategy's prediction and counter it
         best_idx = self._meta_scores.index(max(self._meta_scores))
         predicted = predictions[best_idx]
         return _counter_move(predicted)
@@ -1129,14 +1132,15 @@ def _pretrain_against_archetypes(algo, rounds_per: int = 120):
 # ---------------------------------------------------------------------------
 
 class QLearner(Algorithm):
-    """Tabular Q-Learning with experience replay.
+    r"""Reinforcement Learning agent using the tabular Q-Learning algorithm.
     
-    State = (my_last, opp_last, opp_2nd_last, outcome).
-    Uses experience replay (buffer 200, batch 10) to learn from past mistakes.
-    Pre-trained against archetypes to avoid cold-start stupidity.
+    Maintains a Q-table $Q(s, a)$ representing the expected future reward for
+    taking action $a$ in state $s$. Updates are performed using the Bellman equation:
+    $$Q(s, a) \leftarrow Q(s, a) + \alpha \left[ r + \gamma \max_{a'} Q(s', a') - Q(s, a) \right]$$
+    where $\alpha$ is the learning rate and $\gamma$ is the discount factor.
     
-    **Type**: RL / Q-Learning
-    **State Space**: ~81 states
+    **Type**: Adaptive / RL
+    **Logic**: Temporal Difference Learning
     """
     name = "Q-Learner"
 
@@ -1229,17 +1233,22 @@ class QLearner(Algorithm):
 # 35: Thompson Sampler (Bayesian bandit with Beta distributions)
 # ---------------------------------------------------------------------------
 
-class ThompsonSampler(Algorithm):
-    """Bayesian multi-armed bandit using Beta distributions.
+class ThompsonSampling(Algorithm):
+    r"""Adaptive strategy using Bayesian Thompson Sampling for multi-armed bandits.
     
-    Maintains a Beta(alpha, beta) distribution for each action in each state.
-    Samples from these distributions to decide the next move, naturally balancing
-    exploration and exploitation.
+    Treats each move (R, P, S) as an arm in a bandit problem. It maintains Beta 
+    distributions $\text{Beta}(\alpha_i, \beta_i)$ for each arm, representing
+    the probability of winning. Each round, it samples $\theta_i \sim \text{Beta}(\alpha_i, \beta_i)$
+    and selects the move with the highest sample.
     
-    **Type**: RL / Bayesian Bandit
-    **Model**: Beta-Bernoulli
+    **Update Rule**:
+    - Win: $\alpha_i \leftarrow \alpha_i + 1$
+    - Loss: $\beta_i \leftarrow \beta_i + 1$
+    
+    **Type**: Adaptive / Bayesian
+    **Logic**: Probability Matching
     """
-    name = "Thompson Sampler"
+    name = "Thompson Sampling"
 
     def reset(self):
         # Beta(α, β) params per (state, action)
@@ -1894,8 +1903,7 @@ class GradientLearnerV5(Algorithm):
         max_h = max(hs)
         exp_h = [math.exp(h - max_h) for h in hs]
         total = sum(exp_h)
-        probs = [e / total for e in exp_h]
-        return probs, phis
+        return {m: exp_h[m] / total for m in MOVES}, phis
 
     def choose(self, round_num, my_history, opp_history):
         # Update from last round
@@ -1919,23 +1927,23 @@ class GradientLearnerV5(Algorithm):
                     if i == a_idx:
                         self._w[i][j] += (
                             self._alpha * advantage
-                            * (1 - self._last_probs[i]) * self._last_phi[j]
+                            * (1 - self._last_probs[m]) * self._last_phi[j]
                         )
                     else:
                         self._w[i][j] -= (
                             self._alpha * advantage
-                            * self._last_probs[i] * self._last_phi[j]
+                            * self._last_probs[m] * self._last_phi[j]
                         )
 
-        probs, phis = self._softmax_probs(my_history, opp_history)
-        self._last_probs = probs
+        probs_dict, phis = self._softmax_probs(my_history, opp_history)
+        self._last_probs = probs_dict
 
         # Sample from policy
         r = self.rng.random()
         cumulative = 0.0
         chosen_idx = len(MOVES) - 1
-        for i, p in enumerate(probs):
-            cumulative += p
+        for i, m in enumerate(MOVES):
+            cumulative += probs_dict[m]
             if r <= cumulative:
                 chosen_idx = i
                 break
@@ -2545,14 +2553,15 @@ class Chameleon(Algorithm):
 # ---------------------------------------------------------------------------
 
 class FibonacciPlayer(Algorithm):
-    """Uses the Fibonacci sequence to determine moves.
+    r"""Plays moves based on the Fibonacci sequence $F_n$.
     
-    Follows the Fibonacci sequence mod 3 (period 8 pattern: 0,1,1,2,0,2,2,1).
-    70% of the time it plays this sequence; 30% of the time it exploits the opponent.
-    Hard to detect due to the complex base pattern.
+    Uses the recurrence relation:
+    $$F_n = F_{n-1} + F_{n-2}$$
+    The next move is determined by $F_n \pmod 3$. This creates a pattern
+    with a period of 8 (Pisano period $\pi(3)$), making it a cyclic but
+    mathematically structured sequence.
     
-    **Type**: Pattern / Mathematical
-    **Sequence**: Fibonacci mod 3
+    **Type**: Mathematical
     """
     name = "Fibonacci Player"
     # Fibonacci mod 3 has period 8: [0,1,1,2,0,2,2,1]
@@ -2895,8 +2904,7 @@ class MirrorBreaker(Algorithm):
 
         if self._detected == 'counter' and my_history:
             # They'll counter our last move → play same as our last move
-            # (they play counter(our_last), we play our_last = loses_to their move)
-            # Actually: they play counter(my[-1]), we want to beat that
+            # (they play counter(my[-1]), we want to beat that
             # counter(counter(my[-1])) = loses_to(my[-1])... no.
             # They play X = counter(my[-1]). We want counter(X) = counter(counter(my[-1]))
             expected_opp = _counter_move(my_history[-1])
@@ -3028,7 +3036,7 @@ class TheUsurper(Algorithm):
 class DoubleBluff(Algorithm):
     """Adaptive multi-level reasoning strategy.
     
-    Tracks three levels of recursive reasoning: 0 (Direct Counter), 1 (Counter-Counter),
+    Tracks three levels of recursive thinking: 0 (Direct Counter), 1 (Counter-Counter),
     and 2 (Counter-Counter-Counter). Dynamically selects the level that has been
     most successful against the current opponent.
     
@@ -3386,14 +3394,16 @@ class RegretMinimizer(Algorithm):
 # ---------------------------------------------------------------------------
 
 class FourierPredictor(Algorithm):
-    """Periodicity detection via Discrete Fourier Transform (DFT).
+    r"""Detects periodicity in opponent moves using the Discrete Fourier Transform (DFT).
     
-    Encodes move history as a signal and applies DFT to find dominant frequency
-    components. Extrapolates these frequencies to predict the next move.
-    Highly effective against any periodic or cyclic patterns.
+    Encodes the move history as a complex signal $s[n] \in \{e^{i0}, e^{i2\pi/3}, e^{i4\pi/3}\}$.
+    It computes the DFT:
+    $$S[k] = \sum_{n=0}^{N-1} s[n] \cdot e^{-i2\pi kn/N}$$
+    The algorithm identifies the frequency $k$ with the maximum magnitude $|S[k]|$ 
+    and predicts the next move by extrapolating the signal.
     
-    **Type**: Signal Processing / Pattern
-    **Algorithm**: DFT
+    **Type**: Signal Processing
+    **Complexity**: $O(N \log N)$ (using FFT-like windowing)
     """
     name = "Fourier Predictor"
 
@@ -3524,14 +3534,18 @@ class EigenvaluePredictor(Algorithm):
 # ---------------------------------------------------------------------------
 
 class HiddenMarkovOracle(Algorithm):
-    """Mood-discovery predictor using Hidden Markov Models.
+    r"""Predicts moves using a Hidden Markov Model (HMM) to capture latent states.
     
-    Discovers the opponent's hidden 'moods' (internal states) and their move
-    distributions. Uses the Baum-Welch algorithm for online parameter refinement.
-    Predicts moves by marginalizing probabilities over all possible hidden states.
+    Assumes the opponent's strategy flows through hidden states $z_t$. The model
+    is defined by:
+    - Transition probabilities: $A_{ij} = P(z_{t+1}=j \mid z_t=i)$
+    - Emission probabilities: $B_{ik} = P(x_t=k \mid z_t=i)$
     
-    **Type**: ML / HMM
-    **States**: 3 Hidden states
+    It prepares the next move by marginalizing probabilities:
+    $$P(x_{t+1}=k) = \sum_j P(x_{t+1}=k \mid z_{t+1}=j) \sum_i P(z_{t+1}=j \mid z_t=i) P(z_t=i)$$
+    
+    **Type**: Statistical / Machine Learning
+    **Logic**: Probabilistic Graphical Model
     """
     name = "Hidden Markov Oracle"
 
@@ -4318,10 +4332,10 @@ class IocainePowderPlus(Algorithm):
         for j in range(len(opp_history) - 1):
             if opp_history[j] == last:
                 trans[opp_history[j + 1]] += 1
-        if trans:
-            preds.append(trans.most_common(1)[0][0])
-        else:
-            preds.append(last)
+            if trans:
+                preds.append(trans.most_common(1)[0][0])
+            else:
+                preds.append(last)
 
         # 8. Bigram: (opp[-2], opp[-1]) → next
         if len(opp_history) >= 3:
@@ -4355,7 +4369,7 @@ class IocainePowderPlus(Algorithm):
         # Opponent mirrors our Markov prediction of them
         preds.append(_counter_move(preds[6]))  # counter their Markov prediction
         preds.append(_counter_move(preds[7]))  # counter their bigram
-        preds.append(_counter_move(preds[8]))  # counter their trigram
+        preds.append(_counter_move(preds[7]))  # counter their trigram
 
         return preds
 
@@ -4771,14 +4785,17 @@ class SelfModelDetector(Algorithm):
 # ---------------------------------------------------------------------------
 
 class PiBot(Algorithm):
-    """Deterministic sequence generator based on the digits of Pi.
+    r"""Generates moves based on the decimal expansion of $\pi$.
     
-    Extracts digits from the decimal expansion of Pi to determine moves.
-    Maps digits 0-9 into Rock, Paper, or Scissors, creating a high-entropy
-    sequence that is difficult to predict without knowing the source.
+    Maps the digits of $\pi = 3.14159...$ to moves:
+    - $d \pmod 3 = 0 \rightarrow$ Rock
+    - $d \pmod 3 = 1 \rightarrow$ Paper
+    - $d \pmod 3 = 2 \rightarrow$ Scissors
     
-    **Type**: Mathematical / Deterministic
-    **Source**: Digits of Pi
+    Since $\pi$ is an irrational and normal number, this sequence is 
+    effectively a deterministic yet high-entropy pseudo-random stream.
+    
+    **Type**: Mathematical
     """
     name = "PiBot"
     _PI_DIGITS = "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989"
@@ -6142,14 +6159,18 @@ class NeuralProphet(Algorithm):
 # ---------------------------------------------------------------------------
 
 class LSTMPredictor(Algorithm):
-    """Recurrent neural network using Long Short-Term Memory.
+    r"""Recurrent Neural Network (LSTM) for deep sequence modeling.
     
-    Processes the sequence of game moves using a custom LSTM cell implemented in
-    numpy. Capable of capturing long-range temporal dependencies and rhythmic
-    patterns that traditional fixed-window matchers might overlook.
+    Uses a Long Short-Term Memory (LSTM) cell to capture long-range dependencies
+    in the move sequence. The cell state $c_t$ and hidden state $h_t$ are updated:
+    - Forget gate: $f_t = \sigma(W_f \cdot [h_{t-1}, x_t] + b_f)$
+    - Input gate: $i_t = \sigma(W_i \cdot [h_{t-1}, x_t] + b_i)$
+    - Output gate: $o_t = \sigma(W_o \cdot [h_{t-1}, x_t] + b_o)$
     
-    **Type**: ML / RNN
-    **Logic**: LSTM Cell
+    Outputs a probability distribution over the next move (R, P, S).
+    
+    **Type**: Machine Learning / Deep Learning
+    **Model**: Recurrent Neural Net
     """
     name = "LSTM Predictor"
 
