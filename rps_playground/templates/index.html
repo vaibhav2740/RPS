@@ -1310,6 +1310,131 @@
             .move-buttons { gap: 12px; }
             .arena-scoreboard { gap: 8px; }
         }
+        /* ===== LIBRARY ===== */
+        .library-controls {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            background: rgba(255,255,255,0.03);
+            padding: 16px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-glass);
+        }
+        .library-search {
+            flex: 1;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            outline: none;
+            font-family: 'Inter', sans-serif;
+        }
+        .library-search:focus { border-color: var(--accent-cyan); }
+        
+        .library-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .algo-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition);
+        }
+        .algo-card:hover {
+            transform: translateY(-4px);
+            background: rgba(255,255,255,0.04);
+            border-color: rgba(255,255,255,0.15);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .algo-header {
+            padding: 16px;
+            background: rgba(255,255,255,0.02);
+            border-bottom: 1px solid var(--border-glass);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .algo-name {
+            font-weight: 700;
+            font-size: 1.05rem;
+            color: var(--text-primary);
+        }
+        .algo-badge {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            display: inline-block;
+        }
+        /* Category Colors */
+        .badge-baseline { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
+        .badge-reactive { background: rgba(6, 182, 212, 0.2); color: #67e8f9; border: 1px solid rgba(6, 182, 212, 0.3); }
+        .badge-frequency { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.3); }
+        .badge-pattern { background: rgba(236, 72, 153, 0.2); color: #f9a8d4; border: 1px solid rgba(236, 72, 153, 0.3); }
+        .badge-psychological { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-mathematical { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-ensemble { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-adaptive { background: linear-gradient(135deg, rgba(6,182,212,0.2), rgba(139,92,246,0.2)); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+        .badge-other { background: rgba(255,255,255,0.1); color: var(--text-muted); }
+
+        .algo-body {
+            padding: 16px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            flex: 1;
+        }
+        
+        .algo-details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: rgba(0,0,0,0.2);
+        }
+        .algo-details.expanded {
+            border-top: 1px solid var(--border-glass);
+        }
+        .algo-details-inner {
+            padding: 16px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            white-space: pre-wrap;
+        }
+
+        .algo-footer {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border-glass);
+            background: rgba(255,255,255,0.01);
+            text-align: center;
+        }
+        .btn-expand {
+            background: none;
+            border: none;
+            color: var(--accent-cyan);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+            transition: var(--transition);
+        }
+        .btn-expand:hover { color: #fff; }
+        .btn-expand svg { transition: transform 0.3s; }
+        .btn-expand.active svg { transform: rotate(180deg); }
     </style>
 </head>
 
@@ -1408,6 +1533,9 @@
             <button class="tab-btn" data-tab="arena" id="tab-arena"><svg class="ico">
                     <use href="#ico-gamepad" />
                 </svg> Arena</button>
+            <button class="tab-btn" data-tab="library" id="tab-library"><svg class="ico">
+                    <use href="#ico-flask" /> <!-- Reusing flask icon for now, or could use another -->
+                </svg> Library</button>
         </nav>
 
         <!-- ===== HEAD-TO-HEAD TAB ===== -->
@@ -1778,6 +1906,16 @@
             </div>
         </div>
 
+        <!-- ===== LIBRARY TAB ===== -->
+        <div class="tab-content" id="content-library">
+            <div class="library-controls">
+                <input type="text" class="library-search" id="library-search" placeholder="Search algorithms by name, category, or description..." oninput="filterLibrary()">
+            </div>
+            <div class="library-grid" id="library-grid">
+                <!-- Cards injected here -->
+            </div>
+        </div>
+
         <footer>RPS Playground · Built with <svg class="ico" style="color:#06b6d4">
                 <use href="#ico-flask" />
             </svg> Python + Flask</footer>
@@ -2137,6 +2275,9 @@
                 // Init custom component
                 new SearchableSelect(id, algorithms);
             });
+            
+            // Also render the library
+            renderLibrary(algorithms);
         }
 
         // ===== HELPERS =====
@@ -2689,6 +2830,74 @@
             arenaPlaying = false;
             document.getElementById('arena-board').classList.remove('visible');
             document.getElementById('arena-status').textContent = 'Choose a bot and enter the arena to begin!';
+        }
+        // ===== LIBRARY =====
+        function renderLibrary(items) {
+            const grid = document.getElementById('library-grid');
+            if (!grid) return;
+            
+            grid.innerHTML = items.map((algo, i) => {
+                const catClass = 'badge-' + algo.category.toLowerCase().replace(' ', '-');
+                return `
+                <div class="algo-card" data-name="${algo.name.toLowerCase()}" data-cat="${algo.category.toLowerCase()}" data-desc="${(algo.summary + algo.details).toLowerCase()}">
+                    <div class="algo-header">
+                        <div class="algo-name">${algo.name}</div>
+                        <div class="algo-badge ${catClass}">${algo.category}</div>
+                    </div>
+                    <div class="algo-body">
+                        ${algo.summary || 'No description available yet.'}
+                    </div>
+                    <div class="algo-details" id="details-${i}">
+                        <div class="algo-details-inner">
+                            ${algo.details || 'No detailed documentation available.'}
+                        </div>
+                    </div>
+                    <div class="algo-footer">
+                        <button class="btn-expand" onclick="toggleDetails(${i}, this)">
+                            <span>Show Details</span>
+                            <svg class="ico" style="width:1em;height:1em"><use href="#ico-swords"/></svg><!-- fallback icon, normally chevron -->
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+            
+            // Re-animate if visible
+            if (document.getElementById('content-library').classList.contains('active')) {
+                animateCards('#content-library');
+            }
+        }
+
+        function toggleDetails(index, btn) {
+            const details = document.getElementById(`details-${index}`);
+            const span = btn.querySelector('span');
+            const isExpanded = details.style.maxHeight;
+            
+            if (isExpanded) {
+                details.style.maxHeight = null;
+                details.classList.remove('expanded');
+                btn.classList.remove('active');
+                span.textContent = 'Show Details';
+            } else {
+                details.style.maxHeight = details.scrollHeight + "px";
+                details.classList.add('expanded');
+                btn.classList.add('active');
+                span.textContent = 'Hide Details';
+            }
+        }
+
+        function filterLibrary() {
+            const query = document.getElementById('library-search').value.toLowerCase();
+            const cards = document.querySelectorAll('.algo-card');
+            
+            cards.forEach(card => {
+                const text = card.dataset.name + ' ' + card.dataset.cat + ' ' + card.dataset.desc;
+                if (text.includes(query)) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
         }
     </script>
 </body>

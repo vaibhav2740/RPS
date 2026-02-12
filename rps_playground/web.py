@@ -110,13 +110,26 @@ def index():
 
 @app.route("/api/algorithms")
 def api_algorithms():
-    """Return list of available algorithms with their categories."""
+    """Return list of available algorithms with their categories and docstrings."""
     algos = []
     for cls in ALL_ALGORITHM_CLASSES:
         cat = BOT_CATEGORIES.get(cls.name, "Other")
-        algos.append({"name": cls.name, "category": cat})
+        
+        # Parse docstring
+        import re
+        doc = cls.__doc__ or ""
+        parts = re.split(r'\n\s*\n', doc.strip(), 1)
+        summary = parts[0].replace("\n", " ").strip() if parts else "No description available."
+        details = parts[1].strip() if len(parts) > 1 else ""
+        
+        algos.append({
+            "name": cls.name, 
+            "category": cat,
+            "summary": summary,
+            "details": details
+        })
     
-    # Sort by category then name for easier grouping in UI
+    # Sort by category then name
     algos.sort(key=lambda x: (x["category"], x["name"]))
     return jsonify(algos)
 

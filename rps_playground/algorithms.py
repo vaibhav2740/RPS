@@ -64,18 +64,42 @@ def _counter_move(move: Move) -> Move:
 # ---------------------------------------------------------------------------
 
 class AlwaysRock(Algorithm):
+    """Always chooses Rock.
+    
+    The most predictable strategy possible. It serves as a baseline to test if other
+    algorithms can exploit a static opponent.
+    
+    **Type**: Baseline
+    **Complexity**: O(1)
+    """
     name = "Always Rock"
     def choose(self, round_num, my_history, opp_history):
         return Move.ROCK
 
 
 class AlwaysPaper(Algorithm):
+    """Always chooses Paper.
+    
+    A static baseline strategy. Useful for sanity checking dynamic algorithms
+    to ensure they can learn to play Scissors.
+    
+    **Type**: Baseline
+    **Complexity**: O(1)
+    """
     name = "Always Paper"
     def choose(self, round_num, my_history, opp_history):
         return Move.PAPER
 
 
 class AlwaysScissors(Algorithm):
+    """Always chooses Scissors.
+    
+    A static baseline strategy. Useful for sanity checking dynamic algorithms
+    to ensure they can learn to play Rock.
+    
+    **Type**: Baseline
+    **Complexity**: O(1)
+    """
     name = "Always Scissors"
     def choose(self, round_num, my_history, opp_history):
         return Move.SCISSORS
@@ -86,6 +110,15 @@ class AlwaysScissors(Algorithm):
 # ---------------------------------------------------------------------------
 
 class PureRandom(Algorithm):
+    """Chooses a move completely at random.
+    
+    Each move (Rock, Paper, Scissors) has an equal probability (33.3%).
+    This strategy is theoretically unexploitable in the long run (Nash Equilibrium),
+    but it also cannot exploit an opponent's weaknesses.
+    
+    **Type**: Baseline
+    **Complexity**: O(1)
+    """
     name = "Pure Random"
     def choose(self, round_num, my_history, opp_history):
         return self.rng.choice(MOVES)
@@ -96,6 +129,13 @@ class PureRandom(Algorithm):
 # ---------------------------------------------------------------------------
 
 class Cycle(Algorithm):
+    """Cycles through Rock -> Paper -> Scissors repeatedly.
+    
+    A simple deterministic pattern. Easy to exploit once detected.
+    
+    **Sequence**: R, P, S, R, P, S...
+    **Type**: Pattern
+    """
     name = "Cycle"
     def choose(self, round_num, my_history, opp_history):
         return MOVES[round_num % 3]
@@ -106,8 +146,13 @@ class Cycle(Algorithm):
 # ---------------------------------------------------------------------------
 
 class PersistentRandom(Algorithm):
-    """Picks a random move and plays it for a random duration (5-15 rounds).
-    Then picks a new move and repeats.
+    """Plays a random move and sticks with it for a random duration.
+    
+    Instead of changing every turn, it picks a move (e.g., Rock) and plays it
+    for 5-15 rounds, then switches to a new random move. This confuses algorithms
+    that expect frequent changes or static play.
+    
+    **Type**: Baseline / Pattern
     """
     name = "Persistent Random"
     
@@ -129,6 +174,14 @@ class PersistentRandom(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TitForTat(Algorithm):
+    """Repeats the opponent's last move.
+    
+    If you play Rock, it plays Rock next. Famous in Game Theory (Prisoner's Dilemma),
+    but in RPS, it creates a delay where it effectively loses to a player who knows
+    the pattern (playing the counter to what they *just* played).
+    
+    **Type**: Reactive
+    """
     name = "Tit-for-Tat"
     def choose(self, round_num, my_history, opp_history):
         if not opp_history:
@@ -141,6 +194,13 @@ class TitForTat(Algorithm):
 # ---------------------------------------------------------------------------
 
 class AntiTitForTat(Algorithm):
+    """Plays the move that beats the opponent's last move.
+    
+    If you played Rock, it assumes you might play Rock again (or it just wants to beat Rock),
+    so it plays Paper. Effective against "repeaters".
+    
+    **Type**: Reactive
+    """
     name = "Anti-Tit-for-Tat"
     def choose(self, round_num, my_history, opp_history):
         if not opp_history:
@@ -153,6 +213,14 @@ class AntiTitForTat(Algorithm):
 # ---------------------------------------------------------------------------
 
 class FrequencyAnalyzer(Algorithm):
+    """Counters the opponent's most frequent move.
+    
+    If you play Rock 50% of the time, this bot will play Paper (the counter to Rock).
+    It exploits players who have a bias towards one move.
+    
+    **Type**: Frequency
+    **Logic**: `Counter(opp_history).most_common(1)`
+    """
     name = "Frequency Analyzer"
     def choose(self, round_num, my_history, opp_history):
         if not opp_history:
@@ -167,8 +235,17 @@ class FrequencyAnalyzer(Algorithm):
 # ---------------------------------------------------------------------------
 
 class MarkovPredictor(Algorithm):
+    """Predicts next move based on the previous move (1st-order Markov Chain).
+    
+    Builds a transition matrix tracking `Last Move -> Next Move` probabilities.
+    if you often play Paper after Rock, it will predict Paper when it sees Rock,
+    and play Scissors to counter.
+    
+    **Type**: Pattern / Probability
+    **Order**: 1 (looks back 1 move)
+    """
     name = "Markov Predictor"
-
+    
     def reset(self):
         self._transitions: dict[Move, Counter] = {m: Counter() for m in MOVES}
 
@@ -194,7 +271,13 @@ class MarkovPredictor(Algorithm):
 
 class Spiral(Algorithm):
     """Plays R, R, P, P, S, S... in a continuous spiral pattern.
-    Slower than the standard Cycle.
+    
+    A variation of Cycle that repeats each move twice before switching.
+    Slightly harder to detect than a simple cycle for very naive bots,
+    but still easily exploitable.
+    
+    **Sequence**: R, R, P, P, S, S...
+    **Type**: Pattern
     """
     name = "Spiral"
 
@@ -209,6 +292,14 @@ class Spiral(Algorithm):
 # ---------------------------------------------------------------------------
 
 class WinStayLoseShift(Algorithm):
+    """Standard Pavlov strategy: Win = Stay, Lose = Switch.
+    
+    If it wins, it plays the same move again.
+    If it loses, it switches to the move that would have beaten the opponent's last move.
+    
+    **Type**: Reactive / Heuristic
+    **Also known as**: Win-Stay, Lose-Switch
+    """
     name = "Win-Stay-Lose-Shift"
     def choose(self, round_num, my_history, opp_history):
         if not my_history:
@@ -231,8 +322,17 @@ class WinStayLoseShift(Algorithm):
 # ---------------------------------------------------------------------------
 
 class MetaPredictor(Algorithm):
+    """Ensemble strategy that uses multiple sub-predictors.
+    
+    It runs three internal strategies (Frequency, Last-Move, Anti-Last) and
+    tracks their virtual scores. It then chooses the move suggested by the
+    currently winning sub-strategy.
+    
+    **Sub-bots**: Frequency, Last Move, Anti-Last
+    **Type**: Ensemble / Meta
+    """
     name = "Meta-Predictor"
-
+    
     def reset(self):
         # Track scores of sub-strategies
         self._scores = [0, 0, 0]  # freq, markov, pattern
@@ -276,6 +376,15 @@ class MetaPredictor(Algorithm):
 # ---------------------------------------------------------------------------
 
 class NoiseStrategy(Algorithm):
+    """Plays optimally (Frequency Counter), but adds 20% random noise.
+    
+    Most of the time (80%), it plays the counter to your most frequent move.
+    Occasionally (20%), it plays completely randomly to throw off predictors
+    trying to exploit *it*.
+    
+    **Type**: Frequency / Stochastic
+    **Noise Level**: 20%
+    """
     name = "Noise Strategy"
     def choose(self, round_num, my_history, opp_history):
         if not opp_history or self.rng.random() < 0.2:
@@ -290,8 +399,17 @@ class NoiseStrategy(Algorithm):
 # ---------------------------------------------------------------------------
 
 class AdaptiveHybrid(Algorithm):
+    """Switches between Strategy A, B, and C based on performance.
+    
+    Every 50 rounds, it evaluates which internal strategy has the highest win rate
+    and switches to it.
+    
+    **Strategies**: Frequency, Mirror, Random
+    **Interval**: 50 rounds
+    **Type**: Adaptive / Ensemble
+    """
     name = "Adaptive Hybrid"
-
+    
     def reset(self):
         self._strategy = 0  # 0=freq, 1=mirror, 2=random
         self._strat_wins = [0, 0, 0]
@@ -338,6 +456,14 @@ class AdaptiveHybrid(Algorithm):
 # ---------------------------------------------------------------------------
 
 class LastMoveCounter(Algorithm):
+    """Plays the counter to your OWN last move.
+    
+    If it played Rock last time, it assumes you will try to beat Rock (with Paper),
+    so it plays Scissors (to beat Paper).
+    
+    **Type**: Reactive / Level-K
+    **Logic**: `Counter(my_last_move)`
+    """
     name = "Last-Move Counter"
     def choose(self, round_num, my_history, opp_history):
         if not opp_history:
@@ -350,6 +476,14 @@ class LastMoveCounter(Algorithm):
 # ---------------------------------------------------------------------------
 
 class WeightedRandom(Algorithm):
+    """Plays moves randomly, but weighted by your own move distribution.
+    
+    If you play Rock 70% of the time, this bot will play Paper (Rock's counter)
+    roughly 70% of the time. It matches your biases probablistically rather than
+    deterministically.
+    
+    **Type**: Frequency / Stochastic
+    """
     name = "Weighted Random"
     def choose(self, round_num, my_history, opp_history):
         if not opp_history:
@@ -374,8 +508,16 @@ class WeightedRandom(Algorithm):
 # ---------------------------------------------------------------------------
 
 class Punisher(Algorithm):
+    """Cooperates until it detects a repeated pattern, then punishes it.
+    
+    Normally plays random. If it sees you play the same move 3 times in a row,
+    it enters "Punish Mode" for 10 rounds, aggressively countering that move.
+    
+    **Type**: Psychological / Reactive
+    **Trigger**: 3 repeats
+    """
     name = "Punisher"
-
+    
     def reset(self):
         self._punish_until = -1
 
@@ -402,8 +544,16 @@ class Punisher(Algorithm):
 # ---------------------------------------------------------------------------
 
 class Forgiver(Algorithm):
+    """Like Punisher, but forgives faster (shorter grudge).
+    
+    If it detects you repeating moves, it punishes you, but returns to neutral/random
+    play after only 3 rounds instead of 10.
+    
+    **Type**: Psychological / Reactive
+    **Trigger**: 3 repeats
+    """
     name = "Forgiver"
-
+    
     def reset(self):
         self._punish_until = -1
 
@@ -427,6 +577,14 @@ class Forgiver(Algorithm):
 # ---------------------------------------------------------------------------
 
 class ChaosStrategy(Algorithm):
+    """Randomly picks a different STRATEGY each round.
+    
+    Instead of picking a move, it picks a strategy (Random, Counter, Mirror, Cycle, or Frequency)
+    and executes one move from it. Extremely unpredictable.
+    
+    **Type**: Ensemble / Chaos
+    **Strategies**: 5 unique logics
+    """
     name = "Chaos Strategy"
     def choose(self, round_num, my_history, opp_history):
         strategy = self.rng.randint(0, 4)
@@ -460,9 +618,12 @@ class ChaosStrategy(Algorithm):
 
 class DecayAnalyzer(Algorithm):
     """Frequency analysis where recent moves matter exponentially more.
-
-    Uses a decay factor (0.9) so the last 10-20 moves dominate the
-    prediction, adapting much faster than vanilla FrequencyAnalyzer.
+    
+    Uses a decay factor (0.9) so the last 10-20 moves dominate the prediction.
+    Adapts much faster than vanilla Frequency Analyzer to changing opponents.
+    
+    **Type**: Frequency / Adaptive
+    **Decay Factor**: 0.9
     """
     name = "Decay Analyzer"
 
@@ -484,11 +645,14 @@ class DecayAnalyzer(Algorithm):
 # ---------------------------------------------------------------------------
 
 class Historian(Algorithm):
-    """Finds the longest matching suffix in past history and predicts what
-    the opponent played immediately after that same context.
-
-    Inspired by Lempel-Ziv compression — the longer the matched context,
-    the higher the predictive confidence looks.
+    """Finds the longest matching suffix in past history.
+    
+    Inspired by Lempel-Ziv compression, it looks for the longest sequence in the past
+    that matches the most recent moves, and predicts what the opponent played *next*
+    in that historical context.
+    
+    **Type**: Pattern / Compression
+    **Logic**: Longest Common Suffix
     """
     name = "Historian"
 
@@ -514,12 +678,12 @@ class Historian(Algorithm):
 
 class ReversePsychologist(Algorithm):
     """Assumes the opponent is trying to counter YOUR last move.
-
-    Thinks: "I played X → opponent expects me to play X again →
-    opponent will play counter(X) → I should play counter(counter(X))."
-
-    This creates a 2-level reasoning chain that beats naive counter-last
-    strategies but loses to simple repeaters.
+    
+    Thinks: "I played X -> opponent expects me to play X again -> opponent will play counter(X) -> I should play counter(counter(X))."
+    This creates a 2-level reasoning chain that beats naive counter-last strategies.
+    
+    **Type**: Psychological / Level-K
+    **Level**: 2
     """
     name = "Reverse Psychologist"
 
@@ -537,11 +701,13 @@ class ReversePsychologist(Algorithm):
 # ---------------------------------------------------------------------------
 
 class Echo(Algorithm):
-    """Copies the opponent's move from 3 rounds ago instead of last round.
-
-    Creates a temporal echo — useful when opponents have cyclic patterns
-    with period > 1, and confusing for strategies that only look at the
-    immediate last move.
+    """Copies the opponent's move from 3 rounds ago.
+    
+    Creates a temporal echo. Useful when opponents have cyclic patterns with a period
+    greater than 1, and confusing for strategies that only look at the immediate last move.
+    
+    **Type**: Pattern / Delay
+    **Delay**: 3 rounds
     """
     name = "Echo"
 
@@ -557,12 +723,13 @@ class Echo(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TrojanHorse(Algorithm):
-    """Feeds a predictable pattern (always Rock) for the first 30 rounds
-    to bait the opponent into adapting, then abruptly switches to
-    exploiting their adaptation.
-
-    Opponents that adapt to "always Rock" will start playing Paper —
-    the Trojan then switches to Scissors and shreds them.
+    """Feeds a predictable pattern to bait the opponent, then switches.
+    
+    Plays Rock for the first 30 rounds to bait the opponent into playing Paper.
+    Then abruptly switches to exploiting their adaptation.
+    
+    **Type**: Psychological / Trap
+    **Bait Duration**: 30 rounds
     """
     name = "Trojan Horse"
 
@@ -586,11 +753,14 @@ class TrojanHorse(Algorithm):
 # ---------------------------------------------------------------------------
 
 class ReluctantGambler(Algorithm):
-    """Plays purely random until it has enough data to be statistically
-    confident about the opponent's bias (chi-squared-like threshold).
-
-    Once confident, switches to hard exploitation. Resets confidence
-    check every 100 rounds in case opponent changed strategy.
+    """Plays random until statistically confident (Chi-Squared test).
+    
+    Uses a Chi-Squared test to detect if the opponent's move distribution is
+    significantly biased. Only when confident (p<0.05) does it switch to
+    exploitation mode.
+    
+    **Type**: Statistical / Hybrid
+    **Threshold**: Chi-Sq > 5.99
     """
     name = "Reluctant Gambler"
 
@@ -618,11 +788,13 @@ class ReluctantGambler(Algorithm):
 # ---------------------------------------------------------------------------
 
 class EntropyGuardian(Algorithm):
-    """Monitors its OWN move distribution entropy. If becoming too
-    predictable (entropy drops below threshold), forces random play.
-    Otherwise exploits the opponent.
-
-    Ensures it never becomes easy to read while still adapting.
+    """Monitors its OWN entropy to avoid becoming predictable.
+    
+    If its own move distribution becomes too low-entropy (predictable), it
+    forces valid random moves to restore balance. Otherwise, it adapts to the opponent.
+    
+    **Type**: Defensive / Adaptive
+    **Metric**: Shannon Entropy
     """
     name = "Entropy Guardian"
 
@@ -655,14 +827,14 @@ class EntropyGuardian(Algorithm):
 # ---------------------------------------------------------------------------
 
 class SecondGuess(Algorithm):
-    """Assumes the opponent uses a "counter my last move" strategy.
-
-    Thinks: "I played X → opponent plays counter(X) → so I should play
-    counter(counter(X)) which actually equals the move that LOSES to X."
-
-    But wait — that's what Reverse Psychologist does too. The difference:
-    Second Guess also monitors whether the opponent IS actually countering,
-    and falls back to frequency analysis if they're not.
+    """Counters the opponent's counter-strategy.
+    
+    Detects if the opponent is effectively countering our last moves. If so,
+    it switches to a "counter-counter" logic. If not, it falls back to standard
+    frequency analysis.
+    
+    **Type**: Meta / Adaptive
+    **Logic**: Conditional Counter
     """
     name = "Second Guess"
 
@@ -698,11 +870,13 @@ class SecondGuess(Algorithm):
 # ---------------------------------------------------------------------------
 
 class MajorityRule(Algorithm):
-    """Runs 5 independent sub-strategies each round and uses majority vote.
-
-    Sub-strategies: counter-last, mirror, frequency, anti-cycle, random.
-    The wisdom of crowds — no single strategy dominates, but the ensemble
-    is robust against many different opponent types.
+    """Ensemble of 5 strategies voting on the next move.
+    
+    Strategies: Counter-Last, Mirror, Frequency, Anti-Cycle, and Random.
+    The move with the most votes is chosen. Robust against various opponents.
+    
+    **Type**: Ensemble / Voting
+    **Size**: 5 Sub-strategies
     """
     name = "Majority Rule"
 
@@ -758,15 +932,13 @@ class MajorityRule(Algorithm):
 # ---------------------------------------------------------------------------
 
 class PhaseShifter(Algorithm):
-    """Alternates between two modes in timed phases:
-
-    - Aggressive (40 rounds): Full exploitation — counter opponent's
-      most common recent move.
-    - Defensive (20 rounds): Pure randomness to reset opponent's
-      model of us.
-
-    The asymmetric timing means it spends more time exploiting than
-    hiding, but the defensive bursts prevent easy counter-adaptation.
+    """Alternates between Aggressive (Exploit) and Defensive (Random) phases.
+    
+    40 rounds of aggressive exploitation followed by 20 rounds of pure randomness.
+    The random phase 'washs' the history, confusing opponents that try to model it.
+    
+    **Type**: Temporal / Hybrid
+    **Phases**: 40/20 rounds
     """
     name = "Phase Shifter"
 
@@ -789,12 +961,14 @@ class PhaseShifter(Algorithm):
 # ---------------------------------------------------------------------------
 
 class DeBruijnWalker(Algorithm):
-    """Walks through moves following a De Bruijn-like sequence that covers
-    all possible 2-grams (RR, RP, RS, PR, PP, PS, SR, SP, SS).
-
-    This makes it extremely hard for pattern detectors to find repeating
-    subsequences, since every possible pair appears exactly once per cycle.
-    Occasionally (10%) deviates to exploit if a strong bias is detected.
+    """Plays a De Bruijn sequence covering all 2-move combinations.
+    
+    Ensures that every pair of moves (RR, RP, RS, etc.) appears exactly once
+    in the cycle. Hard for pattern detectors to find simple repetitions.
+    Occasionally deviates to exploit strong biases.
+    
+    **Type**: Pattern / Mathematical
+    **Sequence**: De Bruijn (n=2, k=3)
     """
     name = "De Bruijn Walker"
 
@@ -822,19 +996,14 @@ class DeBruijnWalker(Algorithm):
 # ---------------------------------------------------------------------------
 
 class IocainePowder(Algorithm):
-    """Inspired by the legendary "Iocaine Powder" RPS bot.
-
-    Runs 6 meta-strategies simultaneously:
-    1. Naive: predict opponent plays same as last
-    2. Naive counter: predict opponent counters our last
-    3. Naive counter-counter: one level deeper
-    4-6: Same three but applied to OPPONENT's perspective
-
-    Each meta-strategy is scored by how well it would have predicted
-    the actual last move. The best-performing one is used.
-
-    Named after the battle of wits in The Princess Bride —
-    "I know that you know that I know..."
+    """A famous meta-strategy from the programming contest era.
+    
+    Runs 6 meta-strategies (Naive, Double-Bluff, Triple-Bluff, etc.) and
+    dynamically weights them based on recent success. Plays the prediction
+    of the currently most successful meta-strategy.
+    
+    **Type**: Meta / Historic
+    **Origin**: Dan Egnor (1999)
     """
     name = "Iocaine Powder"
 
@@ -901,15 +1070,13 @@ def _losing_move(move: Move) -> Move:
 
 
 class IntentionalLoser(Algorithm):
-    """Deliberately tries to LOSE every round.
-
-    Predicts the opponent's next move using frequency analysis,
-    then plays the move that LOSES to the prediction.
-
-    Why include it? It's a useful baseline to test that your algorithm
-    can at least beat something that actively tries to lose. It's also
-    a fun sanity check — any algorithm that loses to the Intentional
-    Loser has a serious bug.
+    """Deliberately tries to LOSE.
+    
+    Predicts what you will play and plays the move that loses to it.
+    Useful for testing if other algorithms are working correctly (they should win 100%).
+    
+    **Type**: Testing / Debug
+    **Goal**: 0% Win Rate
     """
     name = "Intentional Loser"
 
@@ -962,14 +1129,14 @@ def _pretrain_against_archetypes(algo, rounds_per: int = 120):
 # ---------------------------------------------------------------------------
 
 class QLearner(Algorithm):
-    """Tabular Q-Learning v4 with experience replay and outcome-aware state.
-
-    State = (my[-1], opp[-1], opp[-2], last_outcome) → 81 states + warm-up.
-    Experience replay: stores last 200 transitions, replays 10 random
-    ones per round for multi-pass learning (DQN-inspired).
-    Pre-trained via self-play against 5 archetypal opponents.
-
-    Q-update: Q(s,a) ← Q(s,a) + α × (reward - Q(s,a))
+    """Tabular Q-Learning with experience replay.
+    
+    State = (my_last, opp_last, opp_2nd_last, outcome).
+    Uses experience replay (buffer 200, batch 10) to learn from past mistakes.
+    Pre-trained against archetypes to avoid cold-start stupidity.
+    
+    **Type**: RL / Q-Learning
+    **State Space**: ~81 states
     """
     name = "Q-Learner"
 
@@ -1063,11 +1230,14 @@ class QLearner(Algorithm):
 # ---------------------------------------------------------------------------
 
 class ThompsonSampler(Algorithm):
-    """Bayesian multi-armed bandit v4 using Beta-Bernoulli model.
-
-    State includes last-round outcome for context-aware exploration.
-    For each (state, action), maintains Beta(α, β) where α counts wins
-    and β counts losses. Samples from posteriors; highest sample wins.
+    """Bayesian multi-armed bandit using Beta distributions.
+    
+    Maintains a Beta(alpha, beta) distribution for each action in each state.
+    Samples from these distributions to decide the next move, naturally balancing
+    exploration and exploitation.
+    
+    **Type**: RL / Bayesian Bandit
+    **Model**: Beta-Bernoulli
     """
     name = "Thompson Sampler"
 
@@ -1135,11 +1305,14 @@ class ThompsonSampler(Algorithm):
 # ---------------------------------------------------------------------------
 
 class UCBExplorer(Algorithm):
-    """UCB1 bandit v4 with outcome-aware state.
-
-    Picks the action maximizing: Q̄(s,a) + c × √(ln(N_s) / n_sa)
-    where c = √2 for optimal exploration-exploitation trade-off.
-    State includes last-round outcome for contextual decisions.
+    """Upper Confidence Bound (UCB1) bandit algorithm.
+    
+    Selects actions based on their average reward plus an uncertainty bonus.
+    Optimizes the trade-off between exploiting known winning moves and exploring
+    statistically uncertain ones.
+    
+    **Type**: RL / Bandit
+    **Formula**: UCB1
     """
     name = "UCB Explorer"
 
@@ -1219,11 +1392,14 @@ class UCBExplorer(Algorithm):
 # ---------------------------------------------------------------------------
 
 class GradientLearner(Algorithm):
-    """Policy gradient v4 with softmax action selection.
-
-    Maintains preference vector h(s,a). Policy π(a|s) = softmax(h).
-    Updates preferences via gradient ascent on expected reward.
-    Outcome-aware state + entropy regularization to prevent collapse.
+    """Policy Gradient method with Softmax action selection.
+    
+    Maintains numerical preferences for each action. Updates these preferences
+    via gradient ascent on the expected reward. Includes entropy regularization
+    to prevent premature convergence to suboptimal strategies.
+    
+    **Type**: RL / Policy Gradient
+    **Policy**: Softmax
     """
     name = "Gradient Learner"
 
@@ -1381,12 +1557,14 @@ def _dot(w, phi):
 # ---------------------------------------------------------------------------
 
 class QLearnerV5(Algorithm):
-    """Q-Learning v5 with linear function approximation.
-
-    Replaces tabular Q(s,a) with Q(s,a) = wᵀ·φ(s,a) where φ is a
-    16-dim feature vector per action (48 weights total).
-    SGD update: w ← w + α·δ·φ where δ = r - Q(s,a).
-    Experience replay performs SGD on past transitions.
+    """Q-Learning with Linear Function Approximation.
+    
+    Replaces the tabular Q-table with a linear model: Q(s,a) = w * phi(s,a).
+    Uses a 16-dimensional feature vector (one-hot actions, outcome, frequency bias, etc.)
+    to generalize across states, allowing it to learn faster in complex environments.
+    
+    **Type**: RL / Linear Approx
+    **Features**: 16-dim vector
     """
     name = "Q-Learner v5"
 
@@ -1545,11 +1723,14 @@ def _cholesky_lower(A):
 
 
 class ThompsonSamplerV5(Algorithm):
-    """Thompson Sampler v5 with Bayesian linear regression (pure Python).
-
-    Maintains per-action posterior N(μ, Σ) where Σ⁻¹ = λI + Σ φφᵀ.
-    Samples weights from posterior via Cholesky decomposition, picks
-    action with highest Q-sample.
+    """Thompson Sampling with Bayesian Linear Regression.
+    
+    Models the reward function as a linear combination of features.
+    Maintains a posterior distribution over the weight vector w for each action.
+    Samples weights to estimate Q-values, balancing exploration/exploitation via uncertainty.
+    
+    **Type**: RL / Bayesian Linear
+    **Math**: Cholesky Decomposition
     """
     name = "Thompson Sampler v5"
 
@@ -1614,10 +1795,14 @@ class ThompsonSamplerV5(Algorithm):
 # ---------------------------------------------------------------------------
 
 class UCBExplorerV5(Algorithm):
-    """LinUCB v5 — contextual bandit with linear payoff model (pure Python).
-
-    For each action: UCB = wᵀφ + α·√(φᵀA⁻¹φ).
-    A is the feature covariance matrix, updated online.
+    """LinUCB (Contextual Bandit with Linear Payoff).
+    
+    Uses Ridge Regression to estimate the expected reward of each action given the
+    current context (features). Adds an exploration bonus based on the confidence
+    interval of the estimate.
+    
+    **Type**: RL / Contextual Bandit
+    **Algorithm**: LinUCB
     """
     name = "UCB Explorer v5"
 
@@ -1678,10 +1863,13 @@ class UCBExplorerV5(Algorithm):
 # ---------------------------------------------------------------------------
 
 class GradientLearnerV5(Algorithm):
-    """Policy gradient v5 with linear softmax on features.
-
-    Preferences h(a) = wₐᵀ·φ(s) per action. Policy π(a|s) = softmax(h).
-    REINFORCE gradient update on linear weights.
+    """Policy Gradient with Linear Function Approximation.
+    
+    Parametrizes the policy as a softmax over linear preferences: pi(a|s) = softmax(w * phi(s,a)).
+    Updates weights via REINFORCE gradient ascent. capable of handling continuous state features.
+    
+    **Type**: RL / Policy Gradient
+    **Features**: 16-dim
     """
     name = "Gradient Learner v5"
 
@@ -1768,11 +1956,14 @@ class GradientLearnerV5(Algorithm):
 # ---------------------------------------------------------------------------
 
 class BayesianPredictor(Algorithm):
-    """Maintains a Dirichlet prior over opponent's move distribution.
-
-    Uses a sliding window of the last 50 moves for adaptivity.
-    Posterior: Dir(α_R + n_R, α_P + n_P, α_S + n_S) with α_i = 1.
-    Samples from posterior and counters the most probable move.
+    """Maintains a Dirichlet prior over the opponent's move distribution.
+    
+    Uses a sliding window of the last 50 moves. Samples from the posterior Dirichlet
+    distribution to estimate probabilities, then counters the most likely move.
+    Robust against noise.
+    
+    **Type**: Probabilistic / Bayesian
+    **Prior**: Dirichlet(1,1,1)
     """
     name = "Bayesian Predictor"
 
@@ -1803,14 +1994,14 @@ class BayesianPredictor(Algorithm):
 # ---------------------------------------------------------------------------
 
 class NGramPredictor(Algorithm):
-    """Builds n-gram model over JOINT (my_move, opp_move) history.
-
-    Unlike Pattern Detector which only looks at opponent's moves,
-    this uses both players' moves as context, capturing interactive
-    patterns like "when I play Rock and they play Paper, they usually
-    follow with Scissors."
-
-    Searches n = 3, 2, 1 for the best matching context.
+    """Builds an N-Gram model of the JOINT history.
+    
+    Looks at sequences of (MyMove, OppMove) pairs.
+    Example: "When I play Rock and they play Paper..." -> what happens next?
+    Captures interactive patterns that single-history predictors miss.
+    
+    **Type**: Pattern / N-Gram
+    **Context**: Joint History
     """
     name = "N-Gram Predictor"
 
@@ -1847,11 +2038,14 @@ class NGramPredictor(Algorithm):
 # ---------------------------------------------------------------------------
 
 class AntiStrategyDetector(Algorithm):
-    """Identifies which known strategy archetype the opponent is using,
-    then plays the specific hard counter for that archetype.
-
-    Detects: constant, cycle, mirror, counter, frequency-based.
-    Scores each detector by accuracy on last 20 moves.
+    """Identifies and counters specific opponent archetypes.
+    
+    Runs multiple "detectors" (Cycle, Mirror, Counter, Frequency) in parallel.
+    If one detector acts as a good predictor of the opponent's moves, this bot
+    switches to the specific hard counter for that archetype.
+    
+    **Type**: Meta / Adaptive
+    **Detects**: 5 archetypes
     """
     name = "Anti-Strategy Detector"
 
@@ -1922,12 +2116,13 @@ class AntiStrategyDetector(Algorithm):
 # ---------------------------------------------------------------------------
 
 class MixtureModel(Algorithm):
-    """Multiplicative weights (Hedge) algorithm over 5 expert strategies.
-
-    Achieves O(√(T log K)) regret — performs nearly as well as the
-    best single expert in hindsight.
-
-    Experts: counter-last, frequency, Markov-like, WSLS, random.
+    """Multiplicative Weights (Hedge) algorithm.
+    
+    Maintains weights for 5 expert strategies (Counter, Frequency, Markov, WSLS, Random).
+    Updates weights based on their performance every round. Theoretically achieves low regret.
+    
+    **Type**: Meta / Learning
+    **Algorithm**: Hedge (Exp3-like)
     """
     name = "Mixture Model"
 
@@ -2020,12 +2215,14 @@ class MixtureModel(Algorithm):
 # ---------------------------------------------------------------------------
 
 class SleeperAgent(Algorithm):
-    """Plays pure random for 80 rounds, collecting data silently.
-
-    After activation, uses a multi-predictor ensemble (frequency,
-    Markov, pattern) on the 80 rounds of clean opponent data —
-    data unaffected by adversarial adaptation since the opponent
-    was just facing "Pure Random" during collection.
+    """Dormant for 80 rounds, then activates with high-quality data.
+    
+    Plays purely randomly for the first 80 rounds to collect "clean" data on how
+    the opponent plays against a random bot (unbiased distribution). Then activates
+    a strong ensemble predictor on this clean dataset.
+    
+    **Type**: Deceptive / Trap
+    **Wake-up**: Round 80
     """
     name = "Sleeper Agent"
     _DORMANT_ROUNDS = 80
@@ -2074,12 +2271,13 @@ class SleeperAgent(Algorithm):
 # ---------------------------------------------------------------------------
 
 class Shapeshifter(Algorithm):
-    """Cycles through 5 completely different strategies every 40 rounds.
-
-    The opponent can't model it because the entire strategy changes
-    before they accumulate enough data to counter it.
-
-    Strategies: Random, Counter-last, Frequency, Markov, WSLS
+    """Rotates its entire strategy every 40 rounds.
+    
+    Cycles through 5 distinct strategies (Random, Counter, Frequency, Markov, WSLS)
+    in fixed 40-round blocks. Prevents the opponent from settling on a counter-strategy.
+    
+    **Type**: Temporal / Hybrid
+    **Phase Length**: 40 rounds
     """
     name = "Shapeshifter"
     _PHASE_LEN = 40
@@ -2130,10 +2328,13 @@ class Shapeshifter(Algorithm):
 
 class HotStreak(Algorithm):
     """Rides winning streaks and retreats during losing streaks.
-
-    When winning: repeats the winning move (it's working).
-    When losing 3+ in a row: switches to pure random to reset.
-    During neutral/draws: uses frequency counter.
+    
+    When winning, it repeats the winning move (it's working).
+    When losing 3+ in a row, it switches to pure random to reset the opponent's model.
+    During neutral phases, it falls back to a frequency counter.
+    
+    **Type**: Momentum / Hybrid
+    **Logic**: Win-Stay, Lose-Random
     """
     name = "Hot Streak"
 
@@ -2172,9 +2373,12 @@ class HotStreak(Algorithm):
 class MarkovGenerator(Algorithm):
     """Generates moves based on a random internal Markov chain.
     
-    Creates a random transition matrix on reset and follows it.
-    Does not adapt to opponent; acts as a 'structured noise' generator.
-    Resets the matrix every 50 rounds to change the structure.
+    Creates a random 3x3 transition matrix on reset and follows it to generate moves.
+    It does not adapt to the opponent; instead, it acts as a 'structured noise' generator
+    that can confuse predictors looking for human-like patterns.
+    
+    **Type**: Generator / Stochastic
+    **Resets**: Every 50 rounds
     """
     name = "Markov Generator"
     
@@ -2212,11 +2416,14 @@ class MarkovGenerator(Algorithm):
 # ---------------------------------------------------------------------------
 
 class MonteCarloPredictor(Algorithm):
-    """Simulates random playout histories and picks the best counter.
-
-    For each possible opponent move, estimates the probability by
-    running Monte Carlo simulations over the observed transition
-    patterns, then plays the move with the highest expected score.
+    """Simulates random playouts to find the best counter.
+    
+    Estimates the probability of each opponent move by running Monte Carlo
+    simulations over the observed transition patterns. Plays the move with the
+    highest expected win rate.
+    
+    **Type**: Probabilistic / Monte Carlo
+    **Simulations**: 50 per round
     """
     name = "Monte Carlo Predictor"
     _N_SIMS = 50
@@ -2250,11 +2457,14 @@ class MonteCarloPredictor(Algorithm):
 # ---------------------------------------------------------------------------
 
 class GrudgeHolder(Algorithm):
-    """Remembers the exact (my_move, opp_move) pairs that caused losses.
-
-    Tracks which of our moves got beaten and by what. Refuses to
-    repeat moves that have historically led to losses against
-    specific opponent replies. Exploits opponent's winning patterns.
+    """Remembers moves that caused losses and avoids them.
+    
+    Tracks which of our moves got beaten and by what. Refuses to repeat moves
+    that have historically led to losses against specific opponent replies.
+    Exploits the opponent's winning patterns.
+    
+    **Type**: Reactive / History
+    **Memory**: Infinite
     """
     name = "Grudge Holder"
 
@@ -2295,15 +2505,14 @@ class GrudgeHolder(Algorithm):
 # ---------------------------------------------------------------------------
 
 class Chameleon(Algorithm):
-    """Matches the opponent's own move distribution.
-
-    If opponent plays 50% Rock, 30% Paper, 20% Scissors,
-    Chameleon will also play 50% Rock, 30% Paper, 20% Scissors.
-
-    This is surprisingly effective: against biased opponents,
-    it creates "frequency proximity" that forces many draws,
-    while the slight randomness prevents easy countering.
-    Against pure random, it becomes pure random too.
+    """Mirrors the opponent's move distribution.
+    
+    If the opponent plays 50% Rock, Chameleon plays 50% Rock.
+    This creates "frequency proximity," forcing many draws against biased opponents
+    while maintaining enough randomness to prevent easy countering.
+    
+    **Type**: Mimicry / Stochastic
+    **Target**: Opponent Distribution
     """
     name = "Chameleon"
 
@@ -2336,14 +2545,14 @@ class Chameleon(Algorithm):
 # ---------------------------------------------------------------------------
 
 class FibonacciPlayer(Algorithm):
-    """Uses Fibonacci sequence to determine move index.
-
-    The Fibonacci sequence mod 3 produces a complex, non-repeating
-    (for long stretches) pattern: 0,1,1,2,0,2,2,1,0,1,1,...
-
-    Combined with opponent exploitation: 70% Fibonacci pattern,
-    30% frequency counter. The Fibonacci base makes it harder
-    for pattern detectors to find the cycle (period 8 in mod 3).
+    """Uses the Fibonacci sequence to determine moves.
+    
+    Follows the Fibonacci sequence mod 3 (period 8 pattern: 0,1,1,2,0,2,2,1).
+    70% of the time it plays this sequence; 30% of the time it exploits the opponent.
+    Hard to detect due to the complex base pattern.
+    
+    **Type**: Pattern / Mathematical
+    **Sequence**: Fibonacci mod 3
     """
     name = "Fibonacci Player"
     # Fibonacci mod 3 has period 8: [0,1,1,2,0,2,2,1]
@@ -2370,15 +2579,14 @@ class FibonacciPlayer(Algorithm):
 # ---------------------------------------------------------------------------
 
 class LempelZivPredictor(Algorithm):
-    """LZ78 compression-based sequence prediction.
-
-    From information theory: a good compressor IS a good predictor.
+    """LZ78 compression-based sequence predictor.
+    
     Builds a dictionary of observed subsequences incrementally.
-    The current phrase context determines the prediction.
-
-    If the opponent's sequence compresses poorly (high Kolmogorov
-    complexity), they're close to random and we default to frequency.
-    If it compresses well, we exploit the detected structure.
+    Uses the current context to find the longest matching phrase in the dictionary
+    and predicts the likely continuation.
+    
+    **Type**: Pattern / Compression
+    **Algorithm**: LZ78
     """
     name = "Lempel-Ziv Predictor"
 
@@ -2427,19 +2635,14 @@ class LempelZivPredictor(Algorithm):
 # ---------------------------------------------------------------------------
 
 class ContextTree(Algorithm):
-    """Context Tree Weighting — provably optimal universal prediction.
-
-    A Bayesian mixture over ALL possible context depths (0 to D=6).
-    Uses the Krichevsky-Trofimov (KT) estimator at each node and
-    weights each depth by its posterior probability.
-
-    Unlike N-Gram Predictor which tries fixed n=3,2,1, Context Tree
-    computes a proper weighted average over ALL depths simultaneously,
+    """Context Tree Weighting (CTW) universal predictor.
+    
+    A Bayesian mixture over all possible context depths (0 to 6).
+    Computes a weighted average of predictions from different historical depths,
     giving more weight to depths with better predictive track records.
-
-    Joint history version: uses (my_move, opp_move) pairs as context,
-    combining the upgrades from N-Gram's joint approach with CTW's
-    optimal depth selection.
+    
+    **Type**: Bayesian / Universal
+    **Algorithm**: CTW
     """
     name = "Context Tree"
     _MAX_DEPTH = 6
@@ -2522,18 +2725,13 @@ class ContextTree(Algorithm):
 
 class MaxEntropyPredictor(Algorithm):
     """Prediction via Jaynes' Maximum Entropy principle.
-
-    Finds the distribution P(opp_next) with MAXIMUM ENTROPY subject
-    to constraints from 3 observed feature scales:
-      - Marginal frequencies (how often they play each move)
-      - 1st-order transitions P(next | last)
-      - 2nd-order transitions P(next | last_2, last_1)
-
-    The MaxEnt solution is a log-linear (exponential family) model:
-      log P(m) ∝ λ₁·log(f_marginal) + λ₂·log(f_transition) + λ₃·log(f_bigram)
-
-    This is the "least biased" estimate consistent with observed data.
-    Feature weights adapt based on recent predictive accuracy.
+    
+    Finds the probability distribution with maximum entropy subject to
+    constraints from marginal frequencies, 1st-order, and 2nd-order transitions.
+    Provides the "least biased" estimate consistent with observed data.
+    
+    **Type**: Statistical / MaxEnt
+    **Inference**: Log-Linear Model
     """
     name = "Max Entropy Predictor"
 
@@ -2618,17 +2816,14 @@ class MaxEntropyPredictor(Algorithm):
 # ---------------------------------------------------------------------------
 
 class PoisonPill(Algorithm):
-    """Deliberately plants a bias, waits for opponent to adapt, exploits.
-
-    3-phase cycle repeated every 90 rounds:
-    Phase 1 (30 rounds): Plant 85% Rock bias → opponent adapts to Paper
-    Phase 2 (30 rounds): Exploit with 85% Scissors (beats their Paper)
-    Phase 3 (30 rounds): Switch to 85% Paper → opponent expects Scissors
-    Then: cycle poisons in a new order so it's never the same twice
-
-    The key insight: most algorithms need ~15-25 rounds to detect a
-    bias. Poison Pill changes every 30, keeping opponents perpetually
-    one step behind.
+    """A highly deceptive bait-and-switch strategy.
+    
+    Cycles through three phases: 1. Planting a bias (Bait), 2. Exploitating
+    the opponent's adaptation (Snare), and 3. Shifting the bait.
+    Keeps the opponent perpetually one step behind by changing logic every 30 rounds.
+    
+    **Type**: Deceptive / Strategic
+    **Cycle**: 90 Rounds
     """
     name = "Poison Pill"
 
@@ -2660,17 +2855,14 @@ class PoisonPill(Algorithm):
 # ---------------------------------------------------------------------------
 
 class MirrorBreaker(Algorithm):
-    """Specifically designed to exploit reactive/mirror opponents.
-
-    Phase 1: Play a diagnostic sequence to identify mirrors/copycats.
-    Phase 2: If reactive opponent detected, create a feedback trap
-             where the opponent's reactions become predictable.
-
-    Against Mirror: I play R → they play R → I play P → they play P → ...
-      Trap: I play the counter of whatever I played last.
-    Against Counter: I play R → they play P →
-      Trap: I play what I played last (they counter it, I counter their counter).
-    Against non-reactive: fall back to Markov prediction.
+    """Exploits mirror and reactive strategies.
+    
+    Uses a diagnostic phase to detect if the opponent is mirroring or countering.
+    Once detected, it sets a feedback trap that turns the opponent's
+    reactive logic against them.
+    
+    **Type**: Anti-Meta / Specialist
+    **Detection**: Feedback Loop
     """
     name = "Mirror Breaker"
 
@@ -2728,16 +2920,14 @@ class MirrorBreaker(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TheUsurper(Algorithm):
-    """Identifies which known strategy archetype the opponent uses,
-    then becomes a STRICTLY BETTER version of that strategy.
-
-    5 archetype detectors run in parallel with exponentially decaying
-    scores. Once an archetype is identified with confidence > 60%,
-    The Usurper plays the specific hard counter.
-
-    Unlike Anti-Strategy Detector (which counter-predicts), The Usurper
-    counter-STRATEGIZES: it exploits the mathematical weakness of the
-    entire strategy class, not just individual predictions.
+    """Identifies and counters opponent archetypes by becoming "better."
+    
+    Detects if the opponent follows a known template (Constant, Cycle, Mirror, etc.).
+    Once identified, it switches to a strategy that is mathematically superior to
+    the entire archetype, not just the next move.
+    
+    **Type**: Anti-Meta / Adaptive
+    **Confidence**: > 60%
     """
     name = "The Usurper"
 
@@ -2836,16 +3026,14 @@ class TheUsurper(Algorithm):
 # ---------------------------------------------------------------------------
 
 class DoubleBluff(Algorithm):
-    """Multi-level reasoning with adaptive depth selection.
-
-    Maintains 3 reasoning levels:
-    Level 0: Counter their most common (basic frequency analysis)
-    Level 1: "They predict level 0" → counter(counter(predicted))
-    Level 2: "They predict level 1" → counter(counter(counter(predicted)))
-    Note: Level 3 = Level 0 (mod 3 cycle), so 3 levels suffice.
-
-    Tracks which reasoning level would have won historically (with
-    exponential recency weighting) and follows the best-performing one.
+    """Adaptive multi-level reasoning strategy.
+    
+    Tracks three levels of recursive reasoning: 0 (Direct Counter), 1 (Counter-Counter),
+    and 2 (Counter-Counter-Counter). Dynamically selects the level that has been
+    most successful against the current opponent.
+    
+    **Type**: Meta / Recursive
+    **Levels**: 3 (Modular)
     """
     name = "Double Bluff"
 
@@ -2898,17 +3086,14 @@ class DoubleBluff(Algorithm):
 # ---------------------------------------------------------------------------
 
 class FrequencyDisruptor(Algorithm):
-    """Deliberately creates FALSE patterns to mislead frequency-based opponents,
-    while tracking and countering their actual moves.
-
-    Phase 1 (20 rounds): Establish a strong fake pattern (e.g., RRPRR PRRPR...)
-    Phase 2 (10 rounds): Switch to the move that destroys opponents
-                          who adapted to the fake pattern
-    Phase 3: Execute frequency analysis on their REAL distribution
-             (revealed during Phase 2, when they were chasing the fake)
-
-    The disruptor cycles through different fake patterns to prevent
-    meta-detection of the disruption strategy itself.
+    """Misleads frequency detectors with false patterns.
+    
+    Establishes a deceptive pattern to bait the opponent into a specific counter.
+    Once the bait is taken, it abruptly switches to exploit the opponent's adaptation.
+    A sophisticated version of the Poison Pill.
+    
+    **Type**: Deceptive / Strategic
+    **Phase**: Multi-Phase Cycle
     """
     name = "Frequency Disruptor"
 
@@ -2962,14 +3147,14 @@ class FrequencyDisruptor(Algorithm):
 # ---------------------------------------------------------------------------
 
 class DeepHistorian(Algorithm):
-    """Upgraded Historian with joint pattern matching and recency weighting.
-
-    Original Historian matches opponent-only sequences of fixed length 4.
-    Deep Historian improves on this with:
-    - Joint (my_move, opp_move) pair patterns (captures interactive play)
-    - Variable-length matching (tries 5,4,3,2 and takes longest match)
-    - Exponential recency decay (recent patterns weighted 4x vs old ones)
-    - Win/loss context (what happened after similar patterns before?)
+    """Upgraded pattern recognition with joint context.
+    
+    Searches history for matching sequences of variable length (2-5).
+    Weights matches by recency and considers joint (player + opponent) history
+    to capture interactive patterns.
+    
+    **Type**: Pattern / History
+    **Weighting**: Exponential Decay
     """
     name = "Deep Historian"
 
@@ -3020,17 +3205,14 @@ class DeepHistorian(Algorithm):
 # ---------------------------------------------------------------------------
 
 class AdaptiveNGram(Algorithm):
-    """Upgraded N-Gram Predictor with dynamic context and decay-weighted counts.
-
-    Original N-Gram tries fixed n=3,2,1 with equal weighting.
-    Adaptive N-Gram improves with:
-    - Dynamic context length (tries n=5 down to n=1)
-    - Exponential decay on counts (recent transitions 3x heavier)
-    - Accuracy tracking per context length (learns which n works best)
-    - Joint (my, opp) pair contexts for deeper pattern capture
-
-    Uses a meta-learner to select the best-performing context length
-    based on rolling prediction accuracy.
+    """Upgraded N-Gram predictor with dynamic context and decay.
+    
+    Uses a meta-learner to select the best-performing context length (n=1 to 5).
+    Weights transitions by recency and incorporates joint (player + opponent)
+    history for deeper pattern analysis.
+    
+    **Type**: Pattern / N-Gram
+    **Selection**: Meta-Learner
     """
     name = "Adaptive N-Gram"
 
@@ -3138,19 +3320,14 @@ class AdaptiveNGram(Algorithm):
 # ---------------------------------------------------------------------------
 
 class RegretMinimizer(Algorithm):
-    """Regret Matching — the foundation of modern game-playing AI.
-
-    This is the core algorithm behind Libratus and Pluribus, the AIs
-    that beat world champions at poker. It provably converges to a
-    Nash equilibrium while exploiting non-Nash opponents.
-
-    For each move, tracks REGRET: how much better we would have done
-    playing that move vs what we actually played. Plays moves
-    proportional to their positive cumulative regret.
-
-    Regret formula:
-      regret(m) += payoff(m, opp_move) - payoff(my_move, opp_move)
-      strategy(m) = max(0, regret(m)) / sum(max(0, regret(m')))
+    """Regret Matching strategy (based on Game Theory).
+    
+    Tracks cumulative "regret" for each move—how much better that move would
+    have performed vs the actual choice. Plays moves proportionally to their
+    positive regret, converging toward a Nash Equilibrium.
+    
+    **Type**: Game Theory / Nash
+    **Algorithm**: Regret Matching
     """
     name = "Regret Minimizer"
 
@@ -3209,18 +3386,14 @@ class RegretMinimizer(Algorithm):
 # ---------------------------------------------------------------------------
 
 class FourierPredictor(Algorithm):
-    """Applies Discrete Fourier Transform to detect hidden periodicities.
-
-    Encodes opponent moves as numbers (R=0, P=1, S=2) and computes
-    the DFT to find dominant frequency components. Extrapolates the
-    dominant frequencies to predict the next value.
-
-    The DFT decomposes the signal x[n] into frequency components:
-      X[k] = Σ x[n] × e^(-2πi·k·n/N)
-
-    If the opponent has ANY periodic pattern (even noisy), the DFT
-    will detect it. Works against Cycle, Phase Shifter, Fibonacci,
-    De Bruijn Walker, and any algorithm with periodic behavior.
+    """Periodicity detection via Discrete Fourier Transform (DFT).
+    
+    Encodes move history as a signal and applies DFT to find dominant frequency
+    components. Extrapolates these frequencies to predict the next move.
+    Highly effective against any periodic or cyclic patterns.
+    
+    **Type**: Signal Processing / Pattern
+    **Algorithm**: DFT
     """
     name = "Fourier Predictor"
 
@@ -3280,19 +3453,14 @@ class FourierPredictor(Algorithm):
 # ---------------------------------------------------------------------------
 
 class EigenvaluePredictor(Algorithm):
-    """Predicts using the dominant eigenvector of the opponent's transition matrix.
-
-    Builds a 3×3 transition matrix M[i][j] = P(opp plays j | opp played i).
-    Computes the STATIONARY DISTRIBUTION π via power iteration:
-      π = lim(n→∞) M^n × π₀
-
-    The stationary distribution reveals the opponent's long-term behavior.
-    For prediction, combines:
-    - Current-row prediction (what follows their last move)
-    - Stationary distribution (their overall bias)
-    - 2nd-order: M² row (what happens after the current transition)
-
-    Power iteration: π^(t+1) = M^T × π^(t), repeated until convergence.
+    """Stationary distribution predictor using Power Iteration.
+    
+    Analyzes the opponent's transition matrix and computes its dominant
+    eigenvector (stationary distribution). Predicts based on long-term
+    behavioral trends and the current transition state.
+    
+    **Type**: Linear Algebra / Markov
+    **Math**: Power Iteration
     """
     name = "Eigenvalue Predictor"
 
@@ -3356,12 +3524,14 @@ class EigenvaluePredictor(Algorithm):
 # ---------------------------------------------------------------------------
 
 class HiddenMarkovOracle(Algorithm):
-    """HMM-based predictor that discovers opponent's hidden 'moods'.
-
-    Assumes the opponent has 3 hidden states with different move
-    distributions. Uses the forward algorithm for state inference
-    and online Baum-Welch for parameter updates every 20 rounds.
-    Predicts by marginalizing over hidden states.
+    """Mood-discovery predictor using Hidden Markov Models.
+    
+    Discovers the opponent's hidden 'moods' (internal states) and their move
+    distributions. Uses the Baum-Welch algorithm for online parameter refinement.
+    Predicts moves by marginalizing probabilities over all possible hidden states.
+    
+    **Type**: ML / HMM
+    **States**: 3 Hidden states
     """
     name = "Hidden Markov Oracle"
 
@@ -3492,11 +3662,14 @@ class HiddenMarkovOracle(Algorithm):
 # ---------------------------------------------------------------------------
 
 class GeneticStrategist(Algorithm):
-    """Evolves a population of response tables via natural selection.
-
-    Each genome maps (opp[-1], opp[-2]) → Move (9 entries).
-    Fitness is tested against opponent's recent 50 moves.
-    Every 25 rounds: selection, crossover, mutation.
+    """Evolutionary strategist using a population of genomes.
+    
+    Each genome encodes a response table for move context. Evolves the population
+    via selection, crossover, and mutation based on fitness against the opponent’s
+    recent history.
+    
+    **Type**: Evolutionary Computing / GA
+    **Population**: 20 Individual genomes
     """
     name = "Genetic Strategist"
 
@@ -3578,11 +3751,14 @@ class GeneticStrategist(Algorithm):
 # ---------------------------------------------------------------------------
 
 class PIDController(Algorithm):
-    """Feedback control strategy using PID (Proportional-Integral-Derivative).
-
-    Error signal per move = expected win rate - actual win rate.
-    PID regulates move selection probabilities via softmax.
-    Kp=0.5, Ki=0.05, Kd=0.2, anti-windup on integral ±10.
+    """Feedback control strategy using PID principles.
+    
+    Regulates move selection by treating the win/loss rate as a control error.
+    Applies Proportional, Integral, and Derivative corrections to the strategy
+    mixture via softmax.
+    
+    **Type**: Control Theory / PID
+    **Params**: Kp=0.5, Ki=0.05, Kd=0.2
     """
     name = "PID Controller"
 
@@ -3659,11 +3835,14 @@ class PIDController(Algorithm):
 # ---------------------------------------------------------------------------
 
 class ChaosEngine(Algorithm):
-    """Deterministic but unpredictable via the logistic map.
-
-    Uses x_{n+1} = 3.99 · xₙ · (1-xₙ) for chaotic move generation.
-    70% chaotic moves, 30% frequency exploitation.
-    Re-seeds from outcome hash every 50 rounds.
+    """Chaotic move generator using the Logistic Map.
+    
+    Generates deterministic but highly unpredictable sequences using non-linear
+    dynamics (logistic map). Blends chaos with frequency exploitation to remain
+    hard to model while still being competitive.
+    
+    **Type**: Mathematical / Chaos
+    **Dynamics**: Logistic Map (r=3.99)
     """
     name = "Chaos Engine"
 
@@ -3716,16 +3895,14 @@ class ChaosEngine(Algorithm):
 # ---------------------------------------------------------------------------
 
 class LevelKReasoner(Algorithm):
-    """Cognitive hierarchy model — detects opponent's reasoning level.
-
-    Level 0: uniform random
-    Level 1: frequency counter (best respond to level 0)
-    Level 2: counter frequency counter
-    Level 3: counter-counter-counter
-    Level 4: counter-counter-counter-counter
-
-    Detects opponent's level by simulating each, then plays one
-    level above. Falls back to Regret Matching when unclear.
+    """Cognitive hierarchy model for reasoning depth.
+    
+    Simulates various levels of recursive thinking (Counter, Counter-Counter, etc.)
+    and detects which level the opponent is using. Plays one level higher to exploit
+    the opponent's reasoning depth.
+    
+    **Type**: Behavioral / Game Theory
+    **Max Level**: k=4
     """
     name = "Level-k Reasoner"
 
@@ -3899,21 +4076,14 @@ class LevelKReasoner(Algorithm):
 # ---------------------------------------------------------------------------
 
 class UCBNGramFusion(Algorithm):
-    """Hybrid that fuses UCB bandit exploration with N-Gram pattern prediction.
-
-    Analysis shows UCB Explorer beats N-Gram via early-game exploration
-    unpredictability (rounds 0-200), while N-Gram dominates late-game
-    once it has enough data to predict patterns (rounds 300+).
-
-    This fusion combines three layers:
-    1. Strategy Layer: UCB bandit, N-Gram predictor, frequency counter
-    2. Selection Layer: softmax mixture weighted by rolling accuracy
-    3. Meta-Prediction Layer: simulates opponent modeling OUR patterns
-       and counter-rotates when we become predictable
-
-    The meta-prediction layer is what makes this hybrid stronger than
-    either parent — it resists being pattern-matched by N-Gram-type
-    opponents while maintaining prediction power against others.
+    """Hybrid strategy fusing bandit exploration with pattern matching.
+    
+    Combines UCB bandit logic for early-game exploration with N-Gram prediction
+    for late-game exploitation. Uses a meta-prediction layer to resist being
+    pattern-matched by opponents.
+    
+    **Type**: Hybrid / Ensemble
+    **Components**: UCB + N-Gram
     """
     name = "UCB-NGram Fusion"
 
@@ -4111,13 +4281,13 @@ class UCBNGramFusion(Algorithm):
 
 class IocainePowderPlus(Algorithm):
     """Upgraded Iocaine Powder with 12 meta-strategies.
-
-    Original uses 6 meta-strategies. Plus version adds:
-    - Markov counter: predict via transition matrix
-    - Bigram counter: predict from (opp[-2],opp[-1]) pattern
-    - Trigram counter: predict from (opp[-3],opp[-2],opp[-1])
-    - Mirror of each new strategy (from opponent's perspective)
-    - Sliding window scoring (last 50 rounds) with exponential decay
+    
+    A sophisticated ensemble that manages 12 distinct meta-strategies, including
+    Markov counters and variable-length pattern matchers. Uses sliding-window
+    scoring with exponential decay to follow the best performing predictor.
+    
+    **Type**: Meta-Strategy / Specialist
+    **Experts**: 12 Meta-strategies
     """
     name = "Iocaine Powder Plus"
 
@@ -4218,12 +4388,14 @@ class IocainePowderPlus(Algorithm):
 # ---------------------------------------------------------------------------
 
 class DynamicMixture(Algorithm):
-    """Upgraded Mixture Model with 8 experts, pruning, and spawning.
-
-    Original has 5 fixed experts. Dynamic version adds:
-    - 8 experts (+ Markov-2, Transition counter, Win-pattern)
-    - Expert pruning: drop experts with <25% accuracy after 100 rounds
-    - Expert spawning: clone best expert with noise every 200 rounds
+    """Advanced Mixture Model with dynamic expert management.
+    
+    Maintains a pool of 8 diverse experts (Markov, WSLS, Frequency, etc.).
+    Features expert pruning (removing underperformers) and spawning (cloning and
+    mutating top performers) to adapt to shifting opponent strategies.
+    
+    **Type**: Ensemble / Adaptive
+    **Experts**: 8 Dynamic experts
     """
     name = "Dynamic Mixture"
 
@@ -4377,12 +4549,14 @@ class DynamicMixture(Algorithm):
 # ---------------------------------------------------------------------------
 
 class HierarchicalBayesian(Algorithm):
-    """Upgraded Bayesian Predictor with learned prior and change-point detection.
-
-    Original uses flat Dir(1,1,1) prior with 50-round window. This version:
-    - Learns the prior α via evidence maximization (adapts over time)
-    - Change-point detection: resets when KL divergence exceeds threshold
-    - Multi-window ensemble: combines predictions from windows 20, 50, 100
+    """Bayesian predictor with change-point detection.
+    
+    Uses an evolving Hierarchical Bayesian model to predict moves. Features
+    Evidence Maximization to learn priors and KL-divergence-based change-point
+    detection to respond to abrupt shifts in the opponent's strategy.
+    
+    **Type**: Bayesian / Probabilistic
+    **Logic**: Change-point detection
     """
     name = "Hierarchical Bayesian"
 
@@ -4482,16 +4656,14 @@ class HierarchicalBayesian(Algorithm):
 # ---------------------------------------------------------------------------
 
 class SelfModelDetector(Algorithm):
-    """Upgraded Anti-Strategy Detector with self-play opponent identification.
-
-    Original detects 5 simple archetypes. Self-Model Detector:
-    - Simulates what each of 10 candidate strategies would play
-    - Finds which strategy the opponent most closely resembles
-    - Plays the known counter to the detected strategy
-
-    Candidate strategies are simple enough to simulate inline:
-    constant, cycle, mirror, counter, frequency, markov, WSLS,
-    anti-tit-for-tat, pattern-trigger, decay frequency.
+    """Anti-strategy detector with self-simulation.
+    
+    Identifies the opponent's current strategy by simulating what 10 different
+    archetype strategies would play in the current context. Switches to the
+    hard counter for the most likely identified strategy.
+    
+    **Type**: Anti-Meta / Classifier
+    **Archetypes**: 10 Strategy candidates
     """
     name = "Self-Model Detector"
 
@@ -4599,10 +4771,14 @@ class SelfModelDetector(Algorithm):
 # ---------------------------------------------------------------------------
 
 class PiBot(Algorithm):
-    """Uses the digits of Pi to determine moves.
+    """Deterministic sequence generator based on the digits of Pi.
     
-    Deterministic but high entropy. Uses the first 1000 digits of Pi.
-    Maps digits: 0-2->Rock, 3-5->Paper, 6-9->Scissors (roughly balanced).
+    Extracts digits from the decimal expansion of Pi to determine moves.
+    Maps digits 0-9 into Rock, Paper, or Scissors, creating a high-entropy
+    sequence that is difficult to predict without knowing the source.
+    
+    **Type**: Mathematical / Deterministic
+    **Source**: Digits of Pi
     """
     name = "PiBot"
     _PI_DIGITS = "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989"
@@ -4622,11 +4798,14 @@ class PiBot(Algorithm):
 # ---------------------------------------------------------------------------
 
 class GoldenRatio(Algorithm):
-    """Uses the Golden Ratio to generate chaotic deterministic moves.
+    """Quasi-periodic sequence generator based on the Golden Ratio (φ).
     
-    Formula: move = floor((round_num * φ) % 1 * 3)
-    This creates a quasi-periodic sequence that is hard to predict without
-    knowing the exact formula.
+    Uses the fractional parts of multiples of the Golden Ratio to generate
+    moves. This produces a low-discrepancy, deterministic sequence that appears
+    stochastic to simple pattern matchers.
+    
+    **Type**: Mathematical / Chaos
+    **Constant**: Phi (1.6180...)
     """
     name = "Golden Ratio"
     _PHI = 1.61803398875
@@ -4641,12 +4820,14 @@ class GoldenRatio(Algorithm):
 # ---------------------------------------------------------------------------
 
 class StockBroker(Algorithm):
-    """Treats R, P, S as stocks in a volatile market.
+    """Market-based strategy treating moves as volatile stocks.
     
-    - 'Stocks' gain value when they would have won the last round.
-    - 'Stocks' lose value when they would have lost.
-    - Adds random 'market noise' (volatility).
-    - Always 'buys' (plays) the highest valued stock.
+    Assigns a value to each move that increases when it would have won and
+    decreases otherwise. Incorporates "market noise" and executes the move with
+    the highest current valuation.
+    
+    **Type**: Economic / Simulation
+    **Logic**: Market Valuation
     """
     name = "Stock Broker"
 
@@ -4683,11 +4864,14 @@ class StockBroker(Algorithm):
 # ---------------------------------------------------------------------------
 
 class QuantumCollapse(Algorithm):
-    """Maintains a 'superposition' of move probabilities.
+    """Probabilistic strategy based on wave function collapse.
     
-    - Wins observable -> Reinforces the state (constructive interference).
-    - Losses observable -> Collapses the probability (destructive interference).
-    - Renormalizes after every observation.
+    Maintains a "superposition" (probability distribution) of moves. Wins cause
+    constructive interference (reinforcing the move), while losses cause
+    destructive interference (collapsing the probability).
+    
+    **Type**: Probabilistic / Stochastic
+    **Logic**: Interference & Collapse
     """
     name = "Quantum Collapse"
 
@@ -4731,10 +4915,14 @@ class QuantumCollapse(Algorithm):
 # ---------------------------------------------------------------------------
 
 class SoundWave(Algorithm):
-    """Generates moves based on oscillating sine waves.
+    """Oscillatory move generator based on interfering sine waves.
     
-    Uses constructive interference of two sine waves with different frequencies
-    to create a complex but deterministic pattern.
+    Combines two sine waves of different frequencies to generate moves. This
+    creates a complex periodic signal representing the "sound" of the strategy,
+    difficult to decode for simple frequency counters.
+    
+    **Type**: Mathematical / Signal
+    **Source**: Sine Interference
     """
     name = "Sound Wave"
 
@@ -4757,10 +4945,14 @@ class SoundWave(Algorithm):
 # ---------------------------------------------------------------------------
 
 class Ackermann(Algorithm):
-    """Uses the Ackermann function to determine lookback depth.
+    """Recursive strategy using the Ackermann function.
     
-    The Ackermann function grows extremely rapidly. We use small inputs
-    derived from the round number to get a dynamic, non-linear lookback distance.
+    Computes a non-linear lookback depth based on the extremely fast-growing
+    Ackermann function. Uses this dynamic depth to select a historical move to
+    counter, making the "attention" of the bot highly non-linear.
+    
+    **Type**: Mathematical / Recursive
+    **Function**: Ackermann(m, n)
     """
     name = "Ackermann"
     _MEMO = {}
@@ -4803,10 +4995,14 @@ class Ackermann(Algorithm):
 # ---------------------------------------------------------------------------
 
 class PrimeHunter(Algorithm):
-    """Plays aggressively only on prime-numbered rounds.
+    """Reactive strategy that only strikes on prime-numbered rounds.
     
-    - If round_num is prime: Plays a hard counter to opponent's last move.
-    - If round_num is composite: Plays completely random to confuse prediction.
+    Strikes with a hard counter on rounds that are prime numbers, while playing
+    purely random on composite rounds. This selective aggression creates a temporal
+    pattern that is difficult for non-mathematical bots to track.
+    
+    **Type**: Mathematical / Reactive
+    **Aggression**: Prime Rounds Only
     """
     name = "Prime Hunter"
 
@@ -4835,12 +5031,14 @@ class PrimeHunter(Algorithm):
 # ---------------------------------------------------------------------------
 
 class CompressionBot(Algorithm):
-    """Uses zlib compression to predict the most likely next move.
+    """Predictor based on Information Theory and NCD.
     
-    Based on Normalized Compression Distance (NCD).
-    It asks: "Which hypothetical next move by the opponent makes their
-    history string most compressible?"
-    The most compressible sequence is the most predictable one.
+    Uses zlib compression to estimate the Normalized Compression Distance (NCD).
+    Identifies the next move that would result in the highest compression ratio
+    for the opponent's sequence, implying it's the most likely continuation.
+    
+    **Type**: Information Theory / ML
+    **Algorithm**: Zlib-based NCD
     """
     name = "Compression Bot"
 
@@ -4881,11 +5079,14 @@ class CompressionBot(Algorithm):
 # ---------------------------------------------------------------------------
 
 class EquilibriumBreaker(Algorithm):
-    """Punishes deviations from Nash Equilibrium.
+    """Frequency-based exploiter that punishes Nash deviations.
     
-    If the opponent plays any move > 33.3% of the time, this bot
-    identifies the frequency bias and exploits it, but remains close to
-    random to avoid being exploited itself.
+    Monitors move distributions and identifies any deviation from the optimal
+    33.3% Nash equilibrium. Once a bias is detected, it scales its aggressive
+    countering to match the severity of the deviation.
+    
+    **Type**: Game Theory / Reactive
+    **Target**: Nash Deviation
     """
     name = "Equilibrium Breaker"
 
@@ -4915,10 +5116,14 @@ class EquilibriumBreaker(Algorithm):
 # ---------------------------------------------------------------------------
 
 class DelayedMirror(Algorithm):
-    """Mirrors the opponent's move from 2 rounds ago.
+    """Copycat strategy with a temporal lag.
     
-    Effective against bots that expect immediate mirroring (like Tit-for-Tat)
-    or immediate countering (like Win-Stay Lose-Shift).
+    Mirrors the opponent's move from two rounds ago. Designed to defeat bots
+    that expect immediate reactions or rely on predicting immediate mirroring
+    patterns.
+    
+    **Type**: Mimicry / Deceptive
+    **Lag**: 2 Rounds
     """
     name = "Delayed Mirror"
 
@@ -4934,11 +5139,14 @@ class DelayedMirror(Algorithm):
 # ---------------------------------------------------------------------------
 
 class GeneSequencer(Algorithm):
-    """Treats moves as DNA sequences (codons) and allows for mutations.
+    """Sequence matcher inspired by biological gene alignment.
     
-    Looks for the last 5 moves (a 'gene') in historical data.
-    Unlike standard pattern matchers, this allows for 1 'mutation' (mismatch)
-    when searching, simulating biological sequence alignment.
+    Treats move history as a DNA sequence and searches for the current context in
+    the past. Unlike exact matchers, it allows for a "mutation" (single mismatch)
+    during alignment to capture fuzzy patterns.
+    
+    **Type**: Pattern / Biological
+    **Tolerance**: 1 Mutation (Hamming=1)
     """
     name = "Gene Sequencer"
 
@@ -4978,12 +5186,14 @@ class GeneSequencer(Algorithm):
 # ---------------------------------------------------------------------------
 
 class Zodiac(Algorithm):
-    """Cycles through 12 different personality archetypes based on round number.
+    """Ensemble of 12 distinct personalities cycling by round.
     
-    Each 'sign' (every 12th round) has a distinct strategy:
-    Aries(Aggro), Taurus(Stubborn), Gemini(Dual), Cancer(Paper), Leo(Winner),
-    Virgo(Analytic), Libra(Balanced), Scorpio(Counter), Sagittarius(Random),
-    Capricorn(WSLS), Aquarius(Chaos), Pisces(Mirror).
+    Assigns a different strategy "sign" to each round in a 12-round cycle.
+    Strategies range from aggressive and stubborn to analytic and chaotic,
+    providing a wide variety of behaviors in a predictable but complex pattern.
+    
+    **Type**: Meta / Personality
+    **Cycle**: 12 Sign Rotation
     """
     name = "Zodiac"
 
@@ -5029,10 +5239,14 @@ class Zodiac(Algorithm):
 # ---------------------------------------------------------------------------
 
 class NeuroEvo(Algorithm):
-    """A minimal neural network (perceptron) that evolves weights on failure.
+    """Minimal neural network with weight mutation.
     
-    Inputs: encoded history of last round.
-    Weights: Evolve (add noise) whenever losing streak >= 3.
+    A single-layer perceptron that maps recent context to move scores. Whenever
+    the bot experiences a losing streak, it "evolves" by injecting random noise
+    into its weights to find a better configuration.
+    
+    **Type**: ML / Evolutionary
+    **Model**: Perceptron
     """
     name = "Neuro Evo"
 
@@ -5081,15 +5295,14 @@ class NeuroEvo(Algorithm):
 # ---------------------------------------------------------------------------
 
 class GeometryBot(Algorithm):
-    """Visualizes moves as vectors on an equilateral triangle unit circle.
+    """Vector-based strategy using centroid centering.
     
-    - Rock:     (1, 0)
-    - Paper:    (-0.5, 0.866)
-    - Scissors: (-0.5, -0.866)
+    Maps moves to vectors on a 2D unit circle and calculates the centroid of the
+    opponent's distribution. Plays the move corresponding to the vector opposite
+    the centroid to counter the opponent's spatial bias.
     
-    Calculates the centroid (average vector) of opponent's recent history.
-    The response is the move corresponding to the vector *opposite* the centroid.
-    This effectively counters the opponent's 'average bias' in 2D space.
+    **Type**: Mathematical / Geometric
+    **Domain**: 2D Unit Circle
     """
     name = "Geometry Bot"
 
@@ -5150,10 +5363,14 @@ class GeometryBot(Algorithm):
 # ---------------------------------------------------------------------------
 
 class GamblersFallacy(Algorithm):
-    """Assume that if a move hasn't happened in a while, it is 'due'.
+    """Predictor based on the Monte Carlo fallacy.
     
-    looks at the last 20 moves. Plays the move that the opponent has
-    played the LEAST frequently, expecting them to 'balance' it out.
+    Assumes that if a move has not occurred recently, it is "due" to happen.
+    Tracks the counts of opponent moves in a recent window and predicts that the
+    least frequent move is the most likely next choice.
+    
+    **Type**: Psychological / Heuristic
+    **Window**: 20 Rounds
     """
     name = "Gambler's Fallacy"
 
@@ -5186,10 +5403,14 @@ class GamblersFallacy(Algorithm):
 # ---------------------------------------------------------------------------
 
 class NashStabilizer(Algorithm):
-    """ Tries to enforce a perfect 33/33/33 distribution in its OWN history.
+    """Self-balancing strategy targeting a perfect Nash distribution.
     
-    If it has played Rock too little, it plays Rock.
-    This makes it asymptotically unexploitable by frequency analysis.
+    Monitors its own move history and intentionally plays the move it has used
+    least. This enforces an asymptotically uniform distribution, making the bot
+    highly resistant to frequency-based exploitation.
+    
+    **Type**: Defensive / Game Theory
+    **Target**: Uniform Distribution
     """
     name = "Nash Stabilizer"
 
@@ -5219,12 +5440,14 @@ class NashStabilizer(Algorithm):
 # ---------------------------------------------------------------------------
 
 class StubbornLoser(Algorithm):
-    """The opposite of Win-Stay Lose-Shift.
+    """Contrarian strategy that doubles down on losses.
     
-    - Win: Shift (Don't push your luck).
-    - Lose: Stay (Stubbornly try again, doubling down).
+    The inverse of the Win-Stay Lose-Shift (WSLS) logic. It shifts its move after
+    a win and stubbornly repeats its move after a loss, frustrating opponents
+    who expect standard reactive patterns.
     
-    Beats standard WSLS players who expect you to shift on loss.
+    **Type**: Reactive / Contrarian
+    **Logic**: Lose-Stay, Win-Shift
     """
     name = "Stubborn Loser"
 
@@ -5253,11 +5476,14 @@ class StubbornLoser(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TraitorMirror(Algorithm):
-    """Mirrors the opponent 80% of the time to build trust.
+    """Mirror strategy with periodic betrayal.
     
-    But 20% of the time, it 'betrays' the mirror logic by playing
-    the counter to the opponent's last move, catching them if they
-    try to counter the expected mirror.
+    Builds the opponent's "trust" by mirroring their moves 80% of the time.
+    In the remaining 20%, it counter-plays the expected mirror move to exploit
+    players who have adapted to the copycat behavior.
+    
+    **Type**: Mimicry / Deceptive
+    **Base**: 80% Mirror
     """
     name = "Traitor Mirror"
 
@@ -5280,12 +5506,14 @@ class TraitorMirror(Algorithm):
 # ---------------------------------------------------------------------------
 
 class OpponentPersona(Algorithm):
-    """Classifies opponent into a 'Persona' based on history.
+    """Classifier that counters the opponent's general persona.
     
-    - Aggressive (>40% Rock): Counts with Paper.
-    - Defensive (>40% Paper): Counts with Scissors.
-    - Evasive (>40% Scissors): Counts with Rock.
-    - Balanced: Plays Random.
+    Categorizes the opponent as Aggressive, Defensive, or Evasive based on their
+    most common move choice. Switches to a dedicated counter-persona to exploit
+    the detected behavioral bias.
+    
+    **Type**: Classifier / Strategy
+    **Personas**: 3 Archetypes
     """
     name = "Opponent Persona"
 
@@ -5311,10 +5539,14 @@ class OpponentPersona(Algorithm):
 # ---------------------------------------------------------------------------
 
 class ExponentialBackoff(Algorithm):
-    """Detects losing streaks and backs off into randomness.
+    """Reactive strategy with a randomization "reset" mechanism.
     
-    If on a losing streak (N), play purely random for 2^N rounds
-    to break any predictive lock the opponent has.
+    Monitors for losing streaks and enters a "backoff" mode when detected. During
+    backoff, it plays purely random for a duration that grows exponentially with
+    the streak length, breaking the opponent's predictive lock.
+    
+    **Type**: Defensive / Stochastic
+    **Recovery**: Exponential Randomization
     """
     name = "Exponential Backoff"
     
@@ -5350,10 +5582,14 @@ class ExponentialBackoff(Algorithm):
 # ---------------------------------------------------------------------------
 
 class PatternBreaker(Algorithm):
-    """Monitors its OWN moves to detect and break obviously patterns.
+    """Self-monitoring bot that prevents predictable behavior.
     
-    If it detects it has played R-R-R or R-P-S (cycles),
-    it intentionally deviates from that pattern.
+    Analyzes its own recent move history for repetitions or common cycles. If a
+    pattern is detected, it intentionally deviates from the expected next move,
+    ensuring it remains difficult for the opponent to model.
+    
+    **Type**: Anti-Meta / Self-Analysis
+    **Trigger**: Self-Pattern Detection
     """
     name = "Pattern Breaker"
 
@@ -5386,14 +5622,14 @@ class PatternBreaker(Algorithm):
 # ---------------------------------------------------------------------------
 
 class SlidingWindowVote(Algorithm):
-    """Takes a vote from 3 distinct historical windows.
+    """Majority-vote ensemble using multi-scale historical windows.
     
-    Predicts opponent move based on:
-    1. Short term (last 5)
-    2. Medium term (last 20)
-    3. Long term (last 100)
+    Generates predictions from three distinct time horizons (Short, Medium, and
+    Long term). Plays the move that beats the majority prediction, providing a
+    stable response that balances recent shifts with long-term trends.
     
-    Plays the counter to the majority vote prediction.
+    **Type**: Ensemble / Statistical
+    **Windows**: 5, 20, 100 Rounds
     """
     name = "Sliding Window Vote"
 
@@ -5420,11 +5656,14 @@ class SlidingWindowVote(Algorithm):
 # ---------------------------------------------------------------------------
 
 class DoubleAgent(Algorithm):
-    """Switches strategies every 10 rounds to confuse opponent.
+    """Deceptive strategy that alternates between cooperative and aggressive modes.
     
-    - Agent A (Rounds 0-9): Mirror Opponent.
-    - Agent B (Rounds 10-19): Counter Opponent.
-    - Repeat.
+    Switches its underlying personality every 10 rounds, alternating between
+    mirroring the opponent and countering them. This temporal oscillation prevents
+    opponents from locking onto a single behavioral model.
+    
+    **Type**: Deceptive / Specialist
+    **Cycle**: 20 Round Period
     """
     name = "Double Agent"
 
@@ -5446,16 +5685,14 @@ class DoubleAgent(Algorithm):
 # ---------------------------------------------------------------------------
 
 class CounterStrike(Algorithm):
-    """Specifically targets Win-Stay Lose-Shift (WSLS) logic.
+    """Specialized exploiter targeting WSLS behavioral patterns.
     
-    Assumes opponent is playing WSLS:
-    - If I Won (Opp Lost): They will Shift. (To beat my last move). 
-      Prediction: They play Counter(MyLast).
-      Response: I play Counter(Counter(MyLast)).
-      
-    - If I Lost (Opp Won): They will Stay. (Replay their last).
-      Prediction: They play OppLast.
-      Response: I play Counter(OppLast).
+    Operates on the assumption that the opponent follows Win-Stay Lose-Shift
+    logic. Predicts whether the opponent will "Stay" or "Shift" based on the
+    previous round's result and executes the optimal counter-strategy.
+    
+    **Type**: Specialists / Anti-Meta
+    **Target**: WSLS Players
     """
     name = "Counter Strike"
 
@@ -5489,15 +5726,14 @@ class CounterStrike(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TheHydra(Algorithm):
-    """Competition-optimized meta-algorithm with 8-expert Hedge ensemble.
-
-    Wraps the CompetitionBot from competition.py for use in the playground.
-    Designed for 100-round matches with fast convergence.
-    Uses frequency, Markov, N-gram, decay, anti-pattern, Nash, Iocaine,
-    and Bayesian transition experts with multiplicative weight updates.
-
-    In competition mode (when set_match_context is called), also exploits
-    opponent name and tournament history for meta-strategy.
+    """Multi-headed ensemble using a Hedge-weighted tournament engine.
+    
+    A high-performance meta-algorithm that manages 8 specialized competition
+    experts. Uses multiplicative weight updates to dynamically adapt to the
+    opponent's strategy within a 100-round match.
+    
+    **Type**: Meta-Strategy / Competition
+    **Experts**: 8 Hedge-weighted experts
     """
     name = "The Hydra"
 
@@ -5538,17 +5774,14 @@ import numpy as _np
 # ---------------------------------------------------------------------------
 
 class TournamentScout(Algorithm):
-    """Analyzes opponent's full tournament record for strategic adaptation.
-
-    Uses opponent_history to classify the opponent archetype:
-    - STATIC: Always plays one move (wins only vs weak)
-    - PATTERN: Wins vs predictable, loses vs adaptive
-    - ADAPTIVE: Strong overall, requires Nash-heavy play
-    - RANDOM: Roughly 33% win rate everywhere → Nash optimal
-    - WEAK: Loses to most → exploit aggressively
-
-    Then selects from 5 expert strategies based on archetype.
-    Also tracks opponent move patterns within the match for exploitation.
+    """Intelligent archetype classifier for tournament play.
+    
+    Scans the opponent's full tournament history to identify their primary
+    archetype (Static, Pattern, Random, etc.). Selects a dedicated counter-strategy
+    and refines it with live in-match transition analysis.
+    
+    **Type**: Classifier / Strategy
+    **Logic**: Archetype Detection
     """
     name = "Tournament Scout"
 
@@ -5725,25 +5958,14 @@ class TournamentScout(Algorithm):
 # ---------------------------------------------------------------------------
 
 class NeuralProphet(Algorithm):
-    """Real-time neural network opponent predictor built in pure numpy.
-
-    Architecture: 27-input → 32-hidden (ReLU) → 16-hidden (ReLU) → 3-output (softmax)
-
-    Input features (27-dim):
-      [0-2]   Opponent last move one-hot
-      [3-5]   Opponent 2nd-last move one-hot
-      [6-8]   My last move one-hot
-      [9-11]  My 2nd-last move one-hot
-      [12-14] Opponent frequency (normalized)
-      [15-17] My frequency (normalized)
-      [18-20] Transition from opp last → ? (normalized)
-      [21-23] Win/loss/draw rate (last 20 rounds)
-      [24]    Round progress (0-1)
-      [25]    Our current win margin (normalized)
-      [26]    Bias = 1.0
-
-    Weights initialized with Xavier init and trained online via SGD
-    after each round. Learning rate decays over the match.
+    """Multilayer Perceptron (MLP) for online move prediction.
+    
+    A 3-layer neural network built in pure numpy that learns to predict the
+    opponent's next move in real-time. Features online training via SGD with
+    momentum and adaptive learning rates based on opponent strength.
+    
+    **Type**: ML / Neural Network
+    **Model**: MLP (27-32-16-3)
     """
     name = "Neural Prophet"
 
@@ -5920,14 +6142,14 @@ class NeuralProphet(Algorithm):
 # ---------------------------------------------------------------------------
 
 class LSTMPredictor(Algorithm):
-    """LSTM-based opponent move predictor in pure numpy.
-
-    Uses a simplified LSTM cell with 16 hidden units to process the
-    sequence of (my_move, opp_move) pairs. Predicts opponent's next move
-    from the hidden state. Trained online via truncated BPTT.
-
-    The LSTM naturally handles temporal patterns that fixed-window
-    approaches miss (e.g., long-range dependencies, rhythm changes).
+    """Recurrent neural network using Long Short-Term Memory.
+    
+    Processes the sequence of game moves using a custom LSTM cell implemented in
+    numpy. Capable of capturing long-range temporal dependencies and rhythmic
+    patterns that traditional fixed-window matchers might overlook.
+    
+    **Type**: ML / RNN
+    **Logic**: LSTM Cell
     """
     name = "LSTM Predictor"
 
@@ -6062,18 +6284,14 @@ class LSTMPredictor(Algorithm):
 # ---------------------------------------------------------------------------
 
 class MetaLearner(Algorithm):
-    """Ensemble meta-learner that pre-selects strategy from tournament data.
-
-    Maintains 6 sub-strategies:
-      1. Frequency exploitation (counter most-played)
-      2. Transition prediction (Markov order-1)
-      3. Anti-frequency (counter what counters our most-played)
-      4. Nash equilibrium (uniform random)
-      5. Gradient tracking (counter accelerating moves)
-      6. Win-stay-lose-shift
-
-    Pre-selects strategy weights using opponent tournament history.
-    Adapts weights using Exp3 (EXP with EXPloration) bandit algorithm.
+    """Adaptive meta-ensemble with tournament-aware pre-selection.
+    
+    Mantains an ensemble of 6 specialized strategies (Frequency, Markov, Nash,
+    etc.). Uses the Exp3 bandit algorithm to dynamically adjust weights based on
+    real-time performance, with initial biases derived from tournament history.
+    
+    **Type**: Meta-Strategy / Bandit
+    **Expert Count**: 6 Strategies
     """
     name = "Meta-Learner"
 
@@ -6264,20 +6482,14 @@ class MetaLearner(Algorithm):
 # ---------------------------------------------------------------------------
 
 class HistoryMatcher(Algorithm):
-    """Multi-length history matching with 6 metastrategies.
-
-    Inspired by Iocaine Powder (1999 RoShamBo Programming Competition winner).
-    Searches for repeating patterns at multiple history lengths (1-20) and
-    applies 6 metastrategies at each level:
-      P0: Direct prediction (play what beats predicted)
-      P'0: Beat opponent's P0 counter
-      P1: Predict based on MY history
-      P'1: Counter P1
-      P2: Predict based on COMBINED history
-      P'2: Counter P2
-
-    Each of the 6 × 20 = 120 predictors is scored and the
-    best-performing one is used. Fallback: decayed frequency counter.
+    """Multi-scale history matching with 6 meta-strategies.
+    
+    An implementation inspired by the legendary Iocaine Powder bot. It searches
+    opponent and player history for repeating patterns at multiple scales and
+    evaluates 6 distinct meta-strategies to decide the best counter-move.
+    
+    **Type**: Pattern Matcher / Meta
+    **Logic**: Multi-scale Correlation
     """
     name = "History Matcher"
 
@@ -6422,22 +6634,14 @@ class HistoryMatcher(Algorithm):
 
 class BayesEnsemble(Algorithm):
     """Bayesian model averaging over 12 diverse predictors.
-
-    Maintains posterior weights over predictors using Bayes' rule with
-    likelihood = P(opponent_move | predictor). Each predictor outputs a
-    probability distribution over opponent's next move.
-
-    Predictors:
-    0: Uniform (baseline)
-    1-3: Frequency with decay (alpha=0.5, 0.8, 0.95)
-    4-6: Order-1 Markov (conditioned on opp, my, pair last move)
-    7: Order-2 Markov (opp last 2)
-    8: De Bruijn sequence detection
-    9: Streak continuation predictor
-    10: Anti-pattern (models opponent modeling us)
-    11: Win/lose/draw conditional predictor
-
-    Combined prediction drives counter-move selection.
+    
+    Maintains a posterior probability distribution over a suite of 12 distinct
+    predictors (Frequency, Markov, De Bruijn, etc.). Uses Bayes' rule to update
+    weights based on predictive accuracy, selecting the move favored by the
+    most credible models.
+    
+    **Type**: Bayesian / Ensemble
+    **Experts**: 12 Probabilistic models
     """
     name = "Bayes Ensemble"
 
@@ -6643,19 +6847,17 @@ class BayesEnsemble(Algorithm):
 # 79: Geometry Bot — anti-rotation metastrategy (dllu.net inspired)
 # ---------------------------------------------------------------------------
 
-class GeometryBot(Algorithm):
-    """Anti-rotation with Boltzmann counters and 6-strategy rotation layer.
-
-    From dllu.net's analysis + RPSContest winners. Models the opponent as
-    choosing a rotation of their/our last move. Maintains 6 predictors:
-
-    R+0, R+1, R+2: Opponent rotates THEIR last move by 0/1/2
-    A+0, A+1, A+2: Opponent rotates OUR last move by 0/1/2
-
-    Uses Boltzmann (softmax) scoring with exponential decay to weight
-    predictors. Then applies its OWN anti-rotation layer on top.
+class GeometryEnsemble(Algorithm):
+    """Anti-rotation ensemble with Boltzmann weighted experts.
+    
+    A sophisticated meta-strategy that treats moves as rotations on a circle.
+    Maintains 12 distinct experts tracking both own and opponent rotations, using
+    Boltzmann (softmax) scoring with exponential decay for selection.
+    
+    **Type**: Meta-Strategy / Specialist
+    **Logic**: Anti-Rotation Layer
     """
-    name = "Geometry Bot"
+    name = "Geometry Ensemble"
 
     def reset(self):
         self._m2i = {Move.ROCK: 0, Move.PAPER: 1, Move.SCISSORS: 2}
@@ -6762,21 +6964,14 @@ class GeometryBot(Algorithm):
 # ---------------------------------------------------------------------------
 
 class PhantomEnsemble(Algorithm):
-    """Mega-ensemble with 60+ predictors and Hedge meta-learning.
-
-    Combines EVERY proven approach into one algorithm:
-    - History matching at depths 1-15 on (opp, my, combined) = 45 predictors
-    - Markov chains order 1-3 on (opp, pair) = 6 predictors
-    - Rotation/anti-rotation = 6 predictors
-    - WLD conditional = 1 predictor
-    - Anti-frequency = 1 predictor
-    - Cycle detection = 1 predictor
-
-    Total: ~60 predictors tracked with exponential decay scoring.
-    Selection via Hedge (multiplicative weights) algorithm.
-
-    Also uses tournament context to identify opponent archetype
-    and pre-bias predictor weights.
+    """Universal ensemble with 60+ integrated predictors.
+    
+    A massive ensemble combining heritage patterns, Markov chains, and temporal
+    alignments. Tracks over 60 predictors simultaneously using a Hedge meta-learning
+    algorithm for weight updates and selection.
+    
+    **Type**: Ensemble / Meta
+    **Experts**: 60+ Tracked models
     """
     name = "Phantom Ensemble"
 
@@ -7092,16 +7287,14 @@ class PhantomEnsemble(Algorithm):
 # ---------------------------------------------------------------------------
 
 class DecisionCascader(Algorithm):
-    """Multi-depth predictor that cascades through analysis levels.
-
-    Level 0: Use longest matching history pattern
-    Level 1: If Level 0 fails, use Markov chain (order 1-3)
-    Level 2: If losing with current approach, try counter-strategy
-    Level 3: If still losing, model opponent as modeling US and double-counter
-    Level 4: Nash fallback
-
-    At each round, evaluates which depth level is currently winning and
-    uses that. Inspired by Greenberg's extension of Iocaine Powder.
+    """Multi-layer predictor with adaptive cascading fallbacks.
+    
+    Processes opponent behavior through a hierarchy of analysis levels (History,
+    Markov, Balanced, etc.). Dynamically evaluates which depth level is currently
+    winning and uses it to drive the strategy.
+    
+    **Type**: Meta-Strategy / Specialist
+    **Logic**: Multi-depth Cascading
     """
     name = "Decision Cascader"
 
@@ -7274,12 +7467,14 @@ class DecisionCascader(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TheTimeTraveler(Algorithm):
-    """Uses a Reservoir Computing (Echo State Network) approach.
-
-    Projects history into a high-dimensional non-linear state space (reservoir)
-    and trains a linear readout to predict the opponent's next move.
-    Training is done online using Ridge Regression on the last 100 states.
-    Fast adaptivity without deep learning overhead.
+    """Echo State Network (ESN) using Reservoir Computing.
+    
+    Projects game history into a high-dimensional non-linear state space (the
+    reservoir) and trains a fast linear readout to predict the opponent's next
+    move. Provides deep-learning style pattern recognition with minimal latency.
+    
+    **Type**: ML / Reservoir Computing
+    **Model**: ESN (40-unit Reservoir)
     """
     name = "The Time Traveler"
 
@@ -7403,11 +7598,14 @@ class TheTimeTraveler(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TheCollective(Algorithm):
-    """Boosting-inspired ensemble.
-
-    Instead of simple voting, it maintains weights for each past round based
-    on validation error. Predictors are weighted by their performance on
-    'hard' rounds (where the ensemble previously failed).
+    """Boosting-inspired ensemble with adaptive instance weighting.
+    
+    An ensemble of weak learners (Markov, HM, Rotation, etc.) that focuses its
+    learning on "hard" rounds where previous predictions failed. Dynamically
+    boosts the influence of predictors that succeed where others stumble.
+    
+    **Type**: Ensemble / Meta
+    **Technique**: Online Boosting
     """
     name = "The Collective"
 
@@ -7541,15 +7739,14 @@ class TheCollective(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TheMirrorWorld(Algorithm):
-    """Recursive Simulation (Level-k thinking).
-
-    Simulates an opponent model trying to predict US.
-    Level 0: Random
-    Level 1: Opponent counters my most likely move (Freq/Markov)
-    Level 2: I counter Level 1
-    Level 3: I counter Opponent countering Level 2
-
-    Dynamically selects best depth based on performance.
+    """Recursive simulation engine using Level-K thinking.
+    
+    Models an opponent who is also modeling the player. Simulates multiple
+    depths of recursive counter-strategies (Level 0 to Level 3) and dynamically
+    selects the depth that best anticipates the opponent's current reasoning.
+    
+    **Type**: Psychological / Simulation
+    **Logic**: Level-K Thinking
     """
     name = "The Mirror World"
 
@@ -7664,14 +7861,14 @@ class TheMirrorWorld(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TheOmniscient(Algorithm):
-    """Supercharged Phantom Ensemble with 79 predictors and deeper prediction.
-
-    Architecture (built on Phantom Ensemble's proven design):
-    - History matching at depths 1-20 on (opp, my, combined) = 60 predictors
-    - Markov chains order 1-4 on (opp, pair, my) = 8 predictors
-    - Rotation/anti-rotation = 6 predictors
-    - Special (anti-freq, WLD, cycle, LZ-context, decay-freq) = 5 predictors
-    Total: 79 predictors with Hedge meta-learning.
+    """Apex ensemble with 79 high-fidelity predictors.
+    
+    An ultimate competition strategy featuring an expansive array of models
+    including high-order Markov chains, deep history matching, and specialized
+    outcome-conditional predictors. Synchronized via Hedge meta-learning.
+    
+    **Type**: Ensemble / Meta
+    **Experts**: 79 Tracked models
     """
     name = "The Omniscient"
 
@@ -8009,12 +8206,14 @@ class TheOmniscient(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TheDoppelganger(Algorithm):
-    """Detects when opponent switches strategy mid-match using Bayesian
-    Online Change-Point Detection (Adams & MacKay 2007).
-
-    Only uses data since the last detected change point for prediction.
-    This handles adaptive opponents that switch strategies mid-match —
-    a problem no other bot in the pool addresses.
+    """Change-point detector using Bayesian online inference.
+    
+    Identifies if and when an opponent switches their strategy mid-match. Uses
+    Bayesian Online Change-Point Detection (BOCPD) to reset its models, ensuring
+    it only learns from the most relevant recent behavior.
+    
+    **Type**: Bayesian / Adaptive
+    **Logic**: BOCPD (Adams & MacKay)
     """
     name = "The Doppelganger"
 
@@ -8222,12 +8421,14 @@ class TheDoppelganger(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TheVoid(Algorithm):
-    """Measures mutual information between our moves and opponent's
-    response to detect if they're reading us.
-
-    High MI → they're predicting us → inject entropy
-    Low MI → we're invisible → exploit aggressively
-    Also monitors opponent's entropy — low entropy = predictable
+    """Information-theoretic anti-prediction engine.
+    
+    Monitors mutual information between the player's moves and the opponent's
+    responses to determine if the player is being successfully modeled. Injects
+    entropy when transparency is high and exploits predictability otherwise.
+    
+    **Type**: Information Theory / Adaptive
+    **Logic**: Mutual Information Analysis
     """
     name = "The Void"
 
@@ -8452,11 +8653,14 @@ class TheVoid(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TheArchitect(Algorithm):
-    """Multi-armed bandit over 12 COMPLETE STRATEGIES, not individual moves.
-
-    Uses Thompson Sampling to select which strategy to follow each round.
-    Fundamentally different from ensemble voting — commits fully to one
-    strategy per round and adapts which one to trust.
+    """Hierarchical bandit governing a library of complete strategies.
+    
+    Instead of individual moves, this meta-algorithm selects between 12 distinct
+    high-level strategies (HM, Markov, WSLS, etc.) using Thompson Sampling. It
+    commits to a strategy for the round and updates its beliefs based on success.
+    
+    **Type**: Bandit / Meta
+    **Technique**: Thompson Sampling
     """
     name = "The Architect"
 
@@ -8622,15 +8826,14 @@ class TheArchitect(Algorithm):
 # ---------------------------------------------------------------------------
 
 class SuperOmniscient(Algorithm):
-    """Fixed Omniscient with proven Phantom Ensemble parameters.
-
-    Fixes over The Omniscient:
-    1. Temperature 0.3 (not 0.2) — prevents over-commitment
-    2. Conservative metadata biasing (+1.5 max, not +4)
-    3. Depth 18 history (not 20 — reduces dilution)
-    4. CTW-inspired context window predictors
-    5. Change-point awareness (halves scores on regime shift)
-    6. Same decay/noise as Phantom Ensemble (0.94, 25% at <0.38)
+    """Refined apex ensemble with regime-shift awareness.
+    
+    An enhanced version of The Omniscient that incorporates change-point
+    detection and CTW context modeling. Calibrated with more conservative meta-
+    biasing and sharper selection temperatures for peak competitive performance.
+    
+    **Type**: Ensemble / Meta
+    **Logic**: Dynamic Regime Adaptation
     """
     name = "Super Omniscient"
 
@@ -8960,6 +9163,15 @@ class SuperOmniscient(Algorithm):
 # ---------------------------------------------------------------------------
 
 class MirrorOpponent(Algorithm):
+    """Simple mirroring strategy that plays the opponent's last move.
+    
+    A basic reactive algorithm that copies the opponent's most recent action.
+    Effective against simple deterministic patterns but easily exploited by
+    anti-mirroring strategies.
+    
+    **Type**: Reactive / Baseline
+    **Logic**: Tit-for-Tat
+    """
     name = "Mirror Opponent"
     def choose(self, round_num, my_history, opp_history):
         if not opp_history:
@@ -8972,11 +9184,14 @@ class MirrorOpponent(Algorithm):
 # ---------------------------------------------------------------------------
 
 class Contrarian(Algorithm):
-    """The Contrarian.
-
-    Tracks its own move history and deliberately plays the move
-    it has used least recently. Opponents modeling our frequency
-    will predict our most common move — we play the rarest one.
+    """The Contrarian – Rare move prioritizer.
+    
+    Tracks its own move history and deliberately selects the move it has used
+    least recently. Designed to defeat opponents that model the player's
+    frequency and expect a bias toward common moves.
+    
+    **Type**: Adaptive / Anti-Meta
+    **Logic**: Least-Frequent Play
     """
     name = "Contrarian"
 
@@ -9003,6 +9218,15 @@ class Contrarian(Algorithm):
 # ---------------------------------------------------------------------------
 
 class PatternDetector(Algorithm):
+    """Pattern identification engine using variable-length history matching.
+    
+    Searches historical records for repeating sequences of moves (lengths 2 to 5).
+    When a match is found, it plays the counter to the move that followed the
+    previous occurrence of the pattern.
+    
+    **Type**: Pattern Matcher / Statistical
+    **Logic**: Sequence Correlation
+    """
     name = "Pattern Detector"
 
     def choose(self, round_num, my_history, opp_history):
@@ -9026,11 +9250,14 @@ class PatternDetector(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TheSingularity(Algorithm):
-    """The Ultimate Ensemble. Fusion of #86, #83, #84.
-
-    1. Uses Super Omniscient for raw predictive power.
-    2. Uses Doppelganger to detect regime shifts and reset/bias predictors.
-    3. Uses The Void to detect when we are being read and switch to defense.
+    """Apex meta-algorithm fusing high-power predictors.
+    
+    A sophisticated ensemble that integrates Super Omniscient for prediction,
+    The Doppelganger for regime shift detection, and The Void for information-
+    theoretic defense. Dynamically switches modes to maintain optimality.
+    
+    **Type**: Meta-Strategy / Ultimate
+    **Logic**: Multi-Agent Fusion
     """
     name = "The Singularity"
 
@@ -9074,12 +9301,14 @@ class TheSingularity(Algorithm):
 # ---------------------------------------------------------------------------
 
 class TheBlackHole(Algorithm):
-    """Enhanced Anti-Prediction.
-
-    Combines The Void (#84) and The Mirror World (#89).
-    If Mutual Information is high (they read us), instead of playing Random (Void),
-    we switch to The Mirror World (exploit their prediction of us).
-    If we are invisible, we exploit them using The Void's ensemble.
+    """Recursive anti-prediction engine with defensive fallback.
+    
+    Combines information-theoretic monitoring with recursive simulation. If it
+    detects it is being read, it switches to Level-K thinking to exploit the
+    opponent's model; otherwise, it uses its internal ensemble for exploitation.
+    
+    **Type**: Information Theory / Simulation
+    **Logic**: Recursive Countering
     """
     name = "The Black Hole"
 
@@ -9111,11 +9340,14 @@ class TheBlackHole(Algorithm):
 # ---------------------------------------------------------------------------
 
 class Phoenix(SuperOmniscient):
-    """Adaptive Phantom with Tilt Detection.
-
-    Inherits from Super Omniscient (#86).
-    Adds specific 'Tilt Predictors' that activate when opponent is on a streak
-    of losses or wins, capturing psychological biases (e.g., frustration drift).
+    """Adaptive meta-strategy with integrated psychological tilt modeling.
+    
+    Extends Super Omniscient with specialized tilt predictors that activate during
+    streaks. Captures and exploits psychological biases that emerge when an
+    opponent is winning or losing consistently.
+    
+    **Type**: Meta-Strategy / Psychological
+    **Logic**: Tilt-Bias Prediction
     """
     name = "Phoenix"
 
