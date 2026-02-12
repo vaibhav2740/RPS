@@ -31,6 +31,77 @@ _ARENA_MAX_SESSIONS = 100
 _MOVE_MAP = {"rock": Move.ROCK, "paper": Move.PAPER, "scissors": Move.SCISSORS}
 _MOVE_EMOJI = {Move.ROCK: "✊", Move.PAPER: "✋", Move.SCISSORS: "✌️"}
 
+# ---------------------------------------------------------------------------
+# Bot Categories
+# ---------------------------------------------------------------------------
+BOT_CATEGORIES = {
+    # Baseline
+    "Always Rock": "Baseline", "Always Paper": "Baseline", "Always Scissors": "Baseline",
+    "Pure Random": "Baseline", "Cycle": "Baseline", "Spiral": "Baseline",
+    "Persistent Random": "Baseline", "Stuttering Cycle": "Baseline",
+    "Double Cycle": "Baseline", "Triple Cycle": "Baseline",
+    "Alternating Mirror": "Baseline",
+
+    # Reactive
+    "Tit-for-Tat": "Reactive", "Anti-Tit-for-Tat": "Reactive",
+    "Mirror Opponent": "Reactive", "Copycat": "Reactive",
+    "Last-Move Counter": "Reactive", "Second Guess": "Reactive",
+    "Reverse Psychologist": "Reactive", "Immediate Counter": "Reactive",
+    "Delayed Counter": "Reactive", "Win-Reflect Lose-Random": "Reactive",
+    "Win-Shift Lose-Stay": "Reactive", "Win-Stay Lose-Shift": "Reactive",
+
+    # Frequency
+    "Frequency Analyzer": "Frequency", "Decay Analyzer": "Frequency",
+    "Windowed Frequency": "Frequency", "Weighted Random": "Frequency",
+    "Biased Random": "Frequency", "Anti-Frequency": "Frequency",
+    "Recent Frequency": "Frequency", "Long-Term Frequency": "Frequency",
+    "Mode Player": "Frequency", "Anti-Mode Player": "Frequency",
+
+    # Pattern
+    "Markov Predictor": "Pattern", "Pattern Matcher": "Pattern",
+    "N-Gram Predictor": "Pattern", "Historian": "Pattern",
+    "De Bruijn Walker": "Pattern", "Pattern Breaker": "Pattern",
+    "Sequence Learner": "Pattern", "Transition Matrix": "Pattern",
+    "Dual Markov": "Pattern", "Triple Markov": "Pattern",
+    "Context Tree": "Pattern", "LZ78 Predictor": "Pattern",
+    "Variable Markov": "Pattern", "Bayesian Transition": "Pattern",
+
+    # Psychological
+    "Gambler's Fallacy": "Psychological", "Reluctant Gambler": "Psychological",
+    "Punisher": "Psychological", "Forgiver": "Psychological",
+    "Grudge Holder": "Psychological", "Naive Learner": "Psychological",
+    "Stubborn": "Psychological", "Fickle": "Psychological",
+    "Overconfident": "Psychological", "Paranoid": "Psychological",
+    "Psychotic": "Psychological", "Desperate": "Psychological",
+
+    # Mathematical
+    "Pi Bot": "Mathematical", "Golden Ratio": "Mathematical",
+    "Fibonacci": "Mathematical", "Prime Walker": "Mathematical",
+    "Chaos Strategy": "Mathematical", "Entropy Guardian": "Mathematical",
+    "Pseudo RNG": "Mathematical", "Linear Congruential": "Mathematical",
+    "Xorshift": "Mathematical", "Mersenne Twister": "Mathematical",
+
+    # Ensemble & Meta
+    "Meta-Predictor": "Ensemble", "Majority Rule": "Ensemble",
+    "Adaptive Hybrid": "Ensemble", "The Hydra": "Ensemble",
+    "Ensemble Voter": "Ensemble", "Weighted Ensemble": "Ensemble",
+    "Dynamic Ensemble": "Ensemble", "Random Forest": "Ensemble",
+    "Boosted Tree": "Ensemble", "Neural Net (Mock)": "Ensemble",
+    "Genetic Algorithm": "Ensemble", "Evolutionary Strategy": "Ensemble",
+    "Expert Mixer": "Ensemble", "Switching Experts": "Ensemble",
+
+    # Adaptive
+    "Thompson Sampling": "Adaptive", "UCB1": "Adaptive",
+    "EXP3": "Adaptive", "Epsilon-Greedy": "Adaptive",
+    "Softmax Explorer": "Adaptive", "Bayesian Bandit": "Adaptive",
+    "Reinforcement Learner": "Adaptive", "Q-Learning (Simple)": "Adaptive",
+    "Deep Q-Bot (Mock)": "Adaptive", "Policy Gradient (Mock)": "Adaptive",
+    "Actor-Critic (Mock)": "Adaptive", "Multi-Armed Bandit": "Adaptive",
+
+    # Other / Default
+    "Default": "Other"
+}
+
 
 @app.route("/")
 def index():
@@ -39,7 +110,15 @@ def index():
 
 @app.route("/api/algorithms")
 def api_algorithms():
-    return jsonify([cls.name for cls in ALL_ALGORITHM_CLASSES])
+    """Return list of available algorithms with their categories."""
+    algos = []
+    for cls in ALL_ALGORITHM_CLASSES:
+        cat = BOT_CATEGORIES.get(cls.name, "Other")
+        algos.append({"name": cls.name, "category": cat})
+    
+    # Sort by category then name for easier grouping in UI
+    algos.sort(key=lambda x: (x["category"], x["name"]))
+    return jsonify(algos)
 
 
 # ---------------------------------------------------------------------------

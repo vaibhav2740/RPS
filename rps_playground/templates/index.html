@@ -58,7 +58,169 @@
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
-            overflow-x: hidden;
+            overflow-y: scroll; /* Prevent layout shift */
+        }
+
+        /* ===== SCROLLBARS ===== */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        /* ===== TOAST NOTIFICATIONS ===== */
+        .toast-container {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: none;
+        }
+        .toast {
+            pointer-events: auto;
+            background: rgba(17, 24, 39, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glass);
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+            max-width: 400px;
+            transform-origin: top right;
+            animation: toastIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .toast.hiding { animation: toastOut 0.3s forwards; }
+        .toast-icon { font-size: 1.4rem; }
+        .toast-content { flex: 1; }
+        .toast-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 2px; }
+        .toast-msg { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; }
+        .toast.success { border-left: 4px solid var(--accent-green); }
+        .toast.error { border-left: 4px solid var(--accent-red); }
+        .toast.info { border-left: 4px solid var(--accent-cyan); }
+        
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(50px) scale(0.9); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        @keyframes toastOut {
+            to { opacity: 0; transform: translateX(20px); }
+        }
+
+        /* ===== SEARCHABLE SELECT ===== */
+        .select-wrapper {
+            position: relative;
+            width: 100%;
+            font-family: 'Inter', sans-serif;
+        }
+        .select-trigger {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: var(--transition);
+        }
+        .select-trigger:hover {
+            border-color: rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.03);
+        }
+        .select-trigger.active {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(6,182,212,0.15);
+        }
+        .select-arrow {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            transition: transform 0.3s;
+        }
+        .select-trigger.active .select-arrow { transform: rotate(180deg); }
+        
+        .select-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            width: 100%;
+            background: #121826; /* Solid bg to avoid transparency stacking */
+            border: 1px solid var(--border-glass);
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .select-dropdown.open {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .select-search-wrap {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-glass);
+            background: rgba(255,255,255,0.02);
+        }
+        .select-search {
+            width: 100%;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-glass);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            outline: none;
+        }
+        .select-search:focus { border-color: var(--accent-cyan); }
+        
+        .select-options {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+        .select-category {
+            padding: 8px 16px 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+        .select-option {
+            padding: 8px 24px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .select-option:hover, .select-option.selected {
+            background: rgba(6,182,212,0.15);
+            color: var(--accent-cyan);
+        }
+        .select-option.hidden { display: none; }
+        .select-no-results {
+            padding: 24px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            display: none;
         }
 
         /* ===== BACKGROUND EFFECTS ===== */
@@ -1762,19 +1924,218 @@
 
             document.getElementById('bot-count-badge').textContent = algorithms.length;
             animateEntrance();
+            
+            // Initialize Toast Container
+            if (!document.querySelector('.toast-container')) {
+                const tc = document.createElement('div');
+                tc.className = 'toast-container';
+                document.body.appendChild(tc);
+            }
         });
 
+        // ===== UI COMPONENTS =====
+        
+        class Toast {
+            static show(message, type = 'info', duration = 3000) {
+                const container = document.querySelector('.toast-container');
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                
+                const iconMap = {
+                    success: '✅',
+                    error: '❌',
+                    info: 'ℹ️'
+                };
+                
+                toast.innerHTML = `
+                    <div class="toast-icon">${iconMap[type] || 'ℹ️'}</div>
+                    <div class="toast-content">
+                        <div class="toast-title">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
+                        <div class="toast-msg">${message}</div>
+                    </div>
+                `;
+                
+                container.appendChild(toast);
+                
+                // Auto remove
+                setTimeout(() => {
+                    toast.classList.add('hiding');
+                    toast.addEventListener('animationend', () => toast.remove());
+                }, duration);
+            }
+            
+            static success(msg) { this.show(msg, 'success'); }
+            static error(msg) { this.show(msg, 'error', 4000); }
+            static info(msg) { this.show(msg, 'info'); }
+        }
+
+        class SearchableSelect {
+            constructor(selectId, options) {
+                this.select = document.getElementById(selectId);
+                this.options = options; // [{name, category}]
+                this.value = this.select.value || (options[0] ? options[0].name : '');
+                
+                this.select.style.display = 'none';
+                this.createDOM();
+                this.bindEvents();
+            }
+            
+            createDOM() {
+                // Wrapper
+                this.wrapper = document.createElement('div');
+                this.wrapper.className = 'select-wrapper';
+                
+                // Trigger
+                this.trigger = document.createElement('div');
+                this.trigger.className = 'select-trigger';
+                this.trigger.innerHTML = `
+                    <span class="select-value">${this.value}</span>
+                    <span class="select-arrow">▼</span>
+                `;
+                
+                // Dropdown
+                this.dropdown = document.createElement('div');
+                this.dropdown.className = 'select-dropdown';
+                
+                // Search
+                const searchWrap = document.createElement('div');
+                searchWrap.className = 'select-search-wrap';
+                this.searchInput = document.createElement('input');
+                this.searchInput.className = 'select-search';
+                this.searchInput.placeholder = 'Search bots...';
+                searchWrap.appendChild(this.searchInput);
+                
+                // Options list
+                this.optionsList = document.createElement('div');
+                this.optionsList.className = 'select-options';
+                
+                this.renderOptions(this.options);
+                
+                this.dropdown.appendChild(searchWrap);
+                this.dropdown.appendChild(this.optionsList);
+                
+                this.wrapper.appendChild(this.trigger);
+                this.wrapper.appendChild(this.dropdown);
+                
+                this.select.parentNode.insertBefore(this.wrapper, this.select);
+            }
+            
+            renderOptions(items) {
+                this.optionsList.innerHTML = '';
+                if (items.length === 0) {
+                    this.optionsList.innerHTML = '<div class="select-no-results">No bots found</div>';
+                    return;
+                }
+                
+                let lastCategory = null;
+                items.forEach(item => {
+                    if (item.category !== lastCategory) {
+                        const catEl = document.createElement('div');
+                        catEl.className = 'select-category';
+                        catEl.textContent = item.category;
+                        this.optionsList.appendChild(catEl);
+                        lastCategory = item.category;
+                    }
+                    
+                    const optEl = document.createElement('div');
+                    optEl.className = 'select-option';
+                    if (item.name === this.value) optEl.classList.add('selected');
+                    optEl.textContent = item.name;
+                    optEl.dataset.value = item.name;
+                    optEl.onclick = () => this.selectValue(item.name);
+                    this.optionsList.appendChild(optEl);
+                });
+            }
+            
+            bindEvents() {
+                this.trigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggle();
+                });
+                
+                this.searchInput.addEventListener('input', (e) => {
+                    const term = e.target.value.toLowerCase();
+                    const filtered = this.options.filter(o => 
+                        o.name.toLowerCase().includes(term) || 
+                        o.category.toLowerCase().includes(term)
+                    );
+                    this.renderOptions(filtered);
+                });
+                
+                this.searchInput.addEventListener('click', (e) => e.stopPropagation());
+                
+                document.addEventListener('click', (e) => {
+                    if (!this.wrapper.contains(e.target)) this.close();
+                });
+                
+                // Key nav
+                this.wrapper.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') this.close();
+                });
+            }
+            
+            toggle() {
+                if (this.dropdown.classList.contains('open')) this.close();
+                else this.open();
+            }
+            
+            open() {
+                // Close others
+                document.querySelectorAll('.select-dropdown.open').forEach(el => {
+                    el.classList.remove('open');
+                    el.previousElementSibling.classList.remove('active');
+                });
+                
+                this.dropdown.classList.add('open');
+                this.trigger.classList.add('active');
+                this.searchInput.focus();
+                this.searchInput.value = '';
+                this.renderOptions(this.options);
+            }
+            
+            close() {
+                this.dropdown.classList.remove('open');
+                this.trigger.classList.remove('active');
+            }
+            
+            selectValue(val) {
+                this.value = val;
+                this.select.value = val;
+                this.trigger.querySelector('.select-value').textContent = val;
+                this.close();
+                
+                // Trigger change event on original select for compatibility
+                this.select.dispatchEvent(new Event('change'));
+            }
+        }
+
         function populateSelects() {
+            // Updated to use SearchableSelect with categorized data
+            // Fetch returns [{name, category}, ...]
             const selects = ['h2h-algo-a', 'h2h-algo-b', 'ova-algo', 'arena-bot'];
+            
             selects.forEach(id => {
+                // Populate native select first for fallback
                 const sel = document.getElementById(id);
-                algorithms.forEach((name, i) => {
+                // Clear any existing wrapper if re-running
+                const existingWrapper = sel.previousElementSibling;
+                if (existingWrapper && existingWrapper.classList.contains('select-wrapper')) {
+                    existingWrapper.remove();
+                    sel.style.display = '';
+                }
+
+                algorithms.forEach((algo, i) => {
+                    // algo is object {name, category} now
+                    const name = algo.name;
                     const opt = document.createElement('option');
                     opt.value = name;
                     opt.textContent = name;
-                    if (id === 'h2h-algo-b' && i === 3) opt.selected = true;
+                    if (id === 'h2h-algo-b' && i === 3) opt.selected = true; // Default opponent
                     sel.appendChild(opt);
                 });
+                
+                // Init custom component
+                new SearchableSelect(id, algorithms);
             });
         }
 
@@ -1820,6 +2181,7 @@
                 renderH2H(data);
             } catch (e) {
                 console.error(e);
+                Toast.error('Head-to-head failed: ' + e.message);
             }
 
             hideSpinner('h2h-spinner');
@@ -1919,6 +2281,7 @@
                 hide('trn-progress');
                 btn.disabled = false;
                 console.error('Tournament stream error');
+                Toast.error('Tournament stream connection failed');
             });
         }
 
@@ -1973,6 +2336,7 @@
                 hide('ova-progress');
                 btn.disabled = false;
                 console.error('One vs All stream error');
+                Toast.error('One vs All stream connection failed');
             });
         }
 
@@ -2097,7 +2461,12 @@
                 prog.classList.remove('visible');
                 renderCompetition(JSON.parse(e.data));
             });
-            es.onerror = () => { es.close(); prog.classList.remove('visible'); };
+            es.onerror = () => { 
+                es.close(); 
+                prog.classList.remove('visible'); 
+                console.error('Competition stream error');
+                Toast.error('Competition stream connection failed');
+            };
         }
 
         function renderCompetition(data) {
@@ -2162,6 +2531,7 @@
                 setMoveBtnsEnabled(true);
             } catch (e) {
                 console.error('Arena start error:', e);
+                Toast.error('Failed to start Arena: ' + e.message);
             }
             btn.disabled = false;
         }
@@ -2209,9 +2579,10 @@
                 addRoundToHistory(data);
 
                 // Re-enable buttons after clash animation
-                setTimeout(() => setMoveBtnsEnabled(true), 500);
+                setTimeout(() => setMoveBtnsEnabled(true), 500); 
             } catch (e) {
                 console.error('Arena play error:', e);
+                Toast.error('Arena round failed: ' + e.message);
                 setMoveBtnsEnabled(true);
             }
         }
@@ -2309,6 +2680,7 @@
                 setMoveBtnsEnabled(true);
             } catch (e) {
                 console.error('Arena reset error:', e);
+                Toast.error('Arena reset failed: ' + e.message);
             }
         }
 
