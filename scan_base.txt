@@ -1,0 +1,179 @@
+9:class Algorithm(ABC):
+10:    """Base class for RPS algorithms."""
+63:class AlwaysRock(Algorithm):
+69:class AlwaysPaper(Algorithm):
+75:class AlwaysScissors(Algorithm):
+85:class PureRandom(Algorithm):
+95:class Cycle(Algorithm):
+105:class PersistentRandom(Algorithm):
+128:class TitForTat(Algorithm):
+140:class AntiTitForTat(Algorithm):
+152:class FrequencyAnalyzer(Algorithm):
+166:class MarkovPredictor(Algorithm):
+176:        prev = self._base._m2i[opp_history[-2]]
+180:        last = self._base._m2i[opp_history[-1]]
+192:class Spiral(Algorithm):
+208:class WinStayLoseShift(Algorithm):
+213:        my_last = self._base._m2i[my_history[-1]]
+214:        opp_last = self._base._m2i[opp_history[-1]]
+230:class MetaPredictor(Algorithm):
+275:class NoiseStrategy(Algorithm):
+289:class AdaptiveHybrid(Algorithm):
+337:class LastMoveCounter(Algorithm):
+349:class WeightedRandom(Algorithm):
+373:class Punisher(Algorithm):
+401:class Forgiver(Algorithm):
+426:class ChaosStrategy(Algorithm):
+458:class DecayAnalyzer(Algorithm):
+483:class Historian(Algorithm):
+512:class ReversePsychologist(Algorithm):
+536:class Echo(Algorithm):
+556:class TrojanHorse(Algorithm):
+585:class ReluctantGambler(Algorithm):
+617:class EntropyGuardian(Algorithm):
+654:class SecondGuess(Algorithm):
+697:class MajorityRule(Algorithm):
+757:class PhaseShifter(Algorithm):
+788:class DeBruijnWalker(Algorithm):
+821:class IocainePowder(Algorithm):
+900:class IntentionalLoser(Algorithm):
+961:class QLearner(Algorithm):
+1062:class ThompsonSampler(Algorithm):
+1102:            my_last = self._base._m2i[my_history[-1]]
+1103:            opp_last = self._base._m2i[opp_history[-1]]
+1134:class UCBExplorer(Algorithm):
+1175:            my_last = self._base._m2i[my_history[-1]]
+1176:            opp_last = self._base._m2i[opp_history[-1]]
+1218:class GradientLearner(Algorithm):
+1267:            my_last = self._base._m2i[my_history[-1]]
+1268:            opp_last = self._base._m2i[opp_history[-1]]
+1380:class QLearnerV5(Algorithm):
+1413:            my_last = self._base._m2i[my_history[-1]]
+1414:            opp_last = self._base._m2i[opp_history[-1]]
+1544:class ThompsonSamplerV5(Algorithm):
+1569:            my_last = self._base._m2i[my_history[-1]]
+1570:            opp_last = self._base._m2i[opp_history[-1]]
+1613:class UCBExplorerV5(Algorithm):
+1637:            my_last = self._base._m2i[my_history[-1]]
+1638:            opp_last = self._base._m2i[opp_history[-1]]
+1677:class GradientLearnerV5(Algorithm):
+1712:            my_last = self._base._m2i[my_history[-1]]
+1713:            opp_last = self._base._m2i[opp_history[-1]]
+1767:class BayesianPredictor(Algorithm):
+1802:class NGramPredictor(Algorithm):
+1846:class AntiStrategyDetector(Algorithm):
+1921:class MixtureModel(Algorithm):
+1939:            opp_last = self._base._m2i[opp_history[-1]]
+1973:            last = self._base._m2i[opp_history[-1]]
+1987:            my_last = self._base._m2i[my_history[-1]]
+1988:            opp_last = self._base._m2i[opp_history[-1]] if opp_history else Move.ROCK
+2019:class SleeperAgent(Algorithm):
+2044:            last = self._base._m2i[opp_history[-1]]
+2073:class Shapeshifter(Algorithm):
+2107:                last = self._base._m2i[opp_history[-1]]
+2128:class HotStreak(Algorithm):
+2169:class MarkovGenerator(Algorithm):
+2211:class MonteCarloPredictor(Algorithm):
+2249:class GrudgeHolder(Algorithm):
+2266:        my_last = self._base._m2i[my_history[-1]]
+2267:        opp_last = self._base._m2i[opp_history[-1]]
+2294:class Chameleon(Algorithm):
+2335:class FibonacciPlayer(Algorithm):
+2369:class LempelZivPredictor(Algorithm):
+2391:        last = self._base._m2i[opp_history[-1]]
+2426:class ContextTree(Algorithm):
+2460:        last = self._base._m2i[opp_history[-1]]
+2520:class MaxEntropyPredictor(Algorithm):
+2565:        last = self._base._m2i[opp_history[-1]]
+2617:class PoisonPill(Algorithm):
+2659:class MirrorBreaker(Algorithm):
+2712:            last = self._base._m2i[opp_history[-1]]
+2727:class TheUsurper(Algorithm):
+2820:                last = self._base._m2i[opp_history[-1]]
+2835:class DoubleBluff(Algorithm):
+2873:            opp_last = self._base._m2i[opp_history[-1]]
+2897:class FrequencyDisruptor(Algorithm):
+2961:class DeepHistorian(Algorithm):
+3019:class AdaptiveNGram(Algorithm):
+3137:class RegretMinimizer(Algorithm):
+3178:            my_last = self._base._m2i[my_history[-1]]
+3179:            opp_last = self._base._m2i[opp_history[-1]]
+3208:class FourierPredictor(Algorithm):
+3279:class EigenvaluePredictor(Algorithm):
+3306:            prev = self._base._m2i[opp_history[-2]]
+3355:class HiddenMarkovOracle(Algorithm):
+3491:class GeneticStrategist(Algorithm):
+3577:class PIDController(Algorithm):
+3602:            my_last = self._base._m2i[my_history[-1]]
+3603:            opp_last = self._base._m2i[opp_history[-1]]
+3658:class ChaosEngine(Algorithm):
+3715:class LevelKReasoner(Algorithm):
+3898:class UCBNGramFusion(Algorithm):
+4109:class IocainePowderPlus(Algorithm):
+4217:class DynamicMixture(Algorithm):
+4376:class HierarchicalBayesian(Algorithm):
+4481:class SelfModelDetector(Algorithm):
+4598:class PiBot(Algorithm):
+4621:class GoldenRatio(Algorithm):
+4640:class StockBroker(Algorithm):
+4682:class QuantumCollapse(Algorithm):
+4730:class SoundWave(Algorithm):
+4756:class Ackermann(Algorithm):
+4802:class PrimeHunter(Algorithm):
+4834:class CompressionBot(Algorithm):
+4880:class EquilibriumBreaker(Algorithm):
+4914:class DelayedMirror(Algorithm):
+4933:class GeneSequencer(Algorithm):
+4977:class Zodiac(Algorithm):
+5028:class NeuroEvo(Algorithm):
+5080:class GeometryBot(Algorithm):
+5149:class GamblersFallacy(Algorithm):
+5185:class NashStabilizer(Algorithm):
+5218:class StubbornLoser(Algorithm):
+5252:class TraitorMirror(Algorithm):
+5279:class OpponentPersona(Algorithm):
+5310:class ExponentialBackoff(Algorithm):
+5349:class PatternBreaker(Algorithm):
+5385:class SlidingWindowVote(Algorithm):
+5419:class DoubleAgent(Algorithm):
+5445:class CounterStrike(Algorithm):
+5488:class TheHydra(Algorithm):
+5537:class TournamentScout(Algorithm):
+5724:class NeuralProphet(Algorithm):
+5919:class LSTMPredictor(Algorithm):
+6061:class MetaLearner(Algorithm):
+6263:class HistoryMatcher(Algorithm):
+6420:class BayesEnsemble(Algorithm):
+6643:class GeometryBot(Algorithm):
+6761:class PhantomEnsemble(Algorithm):
+7091:class DecisionCascader(Algorithm):
+7273:class TheTimeTraveler(Algorithm):
+7402:class TheCollective(Algorithm):
+7540:class TheMirrorWorld(Algorithm):
+7662:class TheOmniscient(Algorithm):
+8007:class TheDoppelganger(Algorithm):
+8220:class TheVoid(Algorithm):
+8450:class TheArchitect(Algorithm):
+8620:class SuperOmniscient(Algorithm):
+9003:class TheMirrorWorld(Algorithm):
+9121:class TheSingularity(Algorithm):
+9169:class TheBlackHole(Algorithm):
+9206:class Phoenix(SuperOmniscient):
+9267:                 last = self._base._m2i[opp_history[-1]]
+9272:                     return self._base._i2m[(pred + 1) % 3]
+9276:                last = self._base._m2i[opp_history[-1]]
+9280:                    return self._base._i2m[(pred + 1) % 3]
+9284:# Duplicate class definition removed
+9287:        self._base = SuperOmniscient()
+9288:        self._base.reset()
+9297:        m_base = self._base.choose(round_num, my_history, opp_history)
+9301:            last = self._base._m2i[opp_history[-1]]
+9302:            prev = self._base._m2i[opp_history[-2]]
+9303:            my_last = self._base._m2i[my_history[-1]]
+9304:            my_prev = self._base._m2i[my_history[-2]]
+9325:            last = self._base._m2i[opp_history[-1]]
+9330:                return self._base._i2m[(pred + 1) % 3]
+9333:            last = self._base._m2i[opp_history[-1]]
+9337:                return self._base._i2m[(pred + 1) % 3]
+9359:class TheMirrorWorld(Algorithm):
+9481:class TheOmniscient(Algorithm):
