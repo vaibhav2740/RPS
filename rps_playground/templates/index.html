@@ -230,7 +230,7 @@
             border: 1px solid var(--border-glass);
             border-radius: 14px;
             padding: 5px;
-            max-width: 560px;
+            max-width: 720px;
             margin-left: auto;
             margin-right: auto;
         }
@@ -1329,7 +1329,9 @@
         <!-- ===== COMPETITION TAB ===== -->
         <div class="tab-content" id="content-competition">
             <div class="card">
-                <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-trophy" /></svg></span> Competition Tournament (Metadata-Aware)</div>
+                <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                            <use href="#ico-trophy" />
+                        </svg></span> Competition Tournament (Metadata-Aware)</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Rounds per match</label>
@@ -1348,23 +1350,47 @@
             <!-- Progress -->
             <div class="progress-panel" id="comp-progress">
                 <div class="card">
-                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-timer" /></svg></span> Competition In Progress</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                                <use href="#ico-timer" />
+                            </svg></span> Competition In Progress</div>
                     <div class="progress-bar-outer">
                         <div class="progress-bar-inner" id="comp-progress-bar" style="width:0%"></div>
                         <div class="progress-pct" id="comp-progress-pct">0%</div>
                     </div>
-                    <div class="progress-match" id="comp-match-info"></div>
+                    <div class="progress-stats">
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Matches Completed</div>
+                            <div class="progress-stat-value" id="comp-count">0 / 0</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Elapsed</div>
+                            <div class="progress-stat-value" id="comp-elapsed">0s</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Estimated Time Left</div>
+                            <div class="progress-stat-value" id="comp-eta">Calculating...</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-label">Last Match Winner</div>
+                            <div class="progress-stat-value" id="comp-last-winner">—</div>
+                        </div>
+                    </div>
+                    <div class="progress-match" id="comp-match-info">Preparing matches...</div>
                 </div>
             </div>
 
             <!-- Results -->
             <div id="comp-result" style="display:none;">
                 <div class="card">
-                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-chart" /></svg></span> Competition Leaderboard (Sorted by Score)</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                                <use href="#ico-chart" />
+                            </svg></span> Competition Leaderboard (Sorted by Score)</div>
                     <div class="table-wrapper" id="comp-leaderboard"></div>
                 </div>
                 <div class="card">
-                    <div class="card-title"><span class="icon"><svg class="ico ico-lg"><use href="#ico-grid" /></svg></span> H2H Matrix</div>
+                    <div class="card-title"><span class="icon"><svg class="ico ico-lg">
+                                <use href="#ico-grid" />
+                            </svg></span> H2H Matrix</div>
                     <div class="matrix-wrapper" id="comp-matrix"></div>
                 </div>
             </div>
@@ -1804,6 +1830,13 @@
         }
 
         // ===== COMPETITION =====
+        function formatTime(seconds) {
+            if (seconds < 60) return Math.round(seconds) + 's';
+            const m = Math.floor(seconds / 60);
+            const s = Math.round(seconds % 60);
+            return m + 'm ' + s + 's';
+        }
+
         function runCompetition() {
             const rounds = parseInt(document.getElementById('comp-rounds').value) || 100;
             const seed = document.getElementById('comp-seed').value || '';
@@ -1813,8 +1846,17 @@
             const bar = document.getElementById('comp-progress-bar');
             const pct = document.getElementById('comp-progress-pct');
             const matchInfo = document.getElementById('comp-match-info');
+            const compCount = document.getElementById('comp-count');
+            const compElapsed = document.getElementById('comp-elapsed');
+            const compEta = document.getElementById('comp-eta');
+            const compWinner = document.getElementById('comp-last-winner');
             bar.style.width = '0%';
             pct.textContent = '0%';
+            compCount.textContent = '0 / 0';
+            compElapsed.textContent = '0s';
+            compEta.textContent = 'Calculating...';
+            compWinner.textContent = '—';
+            matchInfo.textContent = 'Preparing matches...';
             let url = `/api/competition/stream?rounds=${rounds}`;
             if (seed) url += `&seed=${seed}`;
             const es = new EventSource(url);
@@ -1823,7 +1865,11 @@
                 const p = Math.round(d.completed / d.total * 100);
                 bar.style.width = p + '%';
                 pct.textContent = p + '%';
-                matchInfo.innerHTML = `<strong>${d.last_match}</strong> (${d.completed}/${d.total})`;
+                compCount.textContent = d.completed + ' / ' + d.total;
+                compElapsed.textContent = formatTime(d.elapsed);
+                compEta.textContent = formatTime(d.eta);
+                compWinner.textContent = d.winner || '—';
+                matchInfo.innerHTML = `<strong>${d.match}</strong> · ${d.a_wins}-${d.b_wins}`;
             });
             es.addEventListener('done', e => {
                 es.close();
