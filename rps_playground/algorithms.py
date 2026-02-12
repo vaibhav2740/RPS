@@ -161,11 +161,11 @@ class MarkovPredictor(Algorithm):
         if len(opp_history) < 2:
             return self.rng.choice(MOVES)
         # Update transition table with the latest transition
-        prev = opp_history[-2]
+        prev = self._base._m2i[opp_history[-2]]
         curr = opp_history[-1]
         self._transitions[prev][curr] += 1
         # Predict opponent's next move based on their last move
-        last = opp_history[-1]
+        last = self._base._m2i[opp_history[-1]]
         if self._transitions[last]:
             predicted = self._transitions[last].most_common(1)[0][0]
         else:
@@ -205,8 +205,8 @@ class WinStayLoseShift(Algorithm):
     def choose(self, round_num, my_history, opp_history):
         if not my_history:
             return self.rng.choice(MOVES)
-        my_last = my_history[-1]
-        opp_last = opp_history[-1]
+        my_last = self._base._m2i[my_history[-1]]
+        opp_last = self._base._m2i[opp_history[-1]]
         if BEATS[my_last] == opp_last:
             # Won last round — stay
             return my_last
@@ -317,8 +317,8 @@ class AdaptiveHybrid(Algorithm):
 
         # Track wins from last round
         if len(my_history) >= 1:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1]
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]]
             if BEATS[my_last] == opp_last:
                 self._strat_wins[self._strategy] += 1
 
@@ -1003,8 +1003,8 @@ class QLearner(Algorithm):
     def choose(self, round_num, my_history, opp_history):
         # Update Q-values from last round's outcome
         if self._last_state is not None and len(my_history) >= 1:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1]
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]]
             if BEATS[my_last] == opp_last:
                 reward = 1.0
             elif my_last == opp_last:
@@ -1094,8 +1094,8 @@ class ThompsonSampler(Algorithm):
 
         # Update from last round
         if self._last_state is not None and len(my_history) >= 1:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1]
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]]
             self._ensure_state(self._last_state)
             if BEATS[my_last] == opp_last:
                 self._alpha[self._last_state][self._last_action] += 1.0
@@ -1167,8 +1167,8 @@ class UCBExplorer(Algorithm):
 
         # Update from last round
         if self._last_state is not None and len(my_history) >= 1:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1]
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]]
             if BEATS[my_last] == opp_last:
                 reward = 1.0
             elif my_last == opp_last:
@@ -1259,8 +1259,8 @@ class GradientLearner(Algorithm):
 
         # Update from last round
         if self._last_state is not None and len(my_history) >= 1:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1]
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]]
             if BEATS[my_last] == opp_last:
                 reward = 1.0
             elif my_last == opp_last:
@@ -1405,8 +1405,8 @@ class QLearnerV5(Algorithm):
     def choose(self, round_num, my_history, opp_history):
         # Update from last round
         if self._last_action is not None and len(my_history) >= 1:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1]
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]]
             if BEATS[my_last] == opp_last:
                 reward = 1.0
             elif my_last == opp_last:
@@ -1483,8 +1483,8 @@ class ThompsonSamplerV5(Algorithm):
 
         # Update from last round
         if self._last_action is not None and len(my_history) >= 1:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1]
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]]
             if BEATS[my_last] == opp_last:
                 reward = 1.0
             elif my_last == opp_last:
@@ -1549,8 +1549,8 @@ class UCBExplorerV5(Algorithm):
 
         # Update from last round
         if self._last_action is not None and len(my_history) >= 1:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1]
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]]
             if BEATS[my_last] == opp_last:
                 reward = 1.0
             elif my_last == opp_last:
@@ -1625,8 +1625,8 @@ class GradientLearnerV5(Algorithm):
     def choose(self, round_num, my_history, opp_history):
         # Update from last round
         if self._last_action is not None and len(my_history) >= 1:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1]
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]]
             if BEATS[my_last] == opp_last:
                 reward = 1.0
             elif my_last == opp_last:
@@ -1852,7 +1852,7 @@ class MixtureModel(Algorithm):
     def choose(self, round_num, my_history, opp_history):
         # Update weights from last round outcomes
         if self._last_votes and len(opp_history) >= 1:
-            opp_last = opp_history[-1]
+            opp_last = self._base._m2i[opp_history[-1]]
             for i, vote in enumerate(self._last_votes):
                 if BEATS[vote] == opp_last:
                     loss = 0.0  # expert won
@@ -1886,7 +1886,7 @@ class MixtureModel(Algorithm):
 
         # Expert 2: Markov-like (counter what they played after their last move)
         if len(opp_history) >= 2:
-            last = opp_history[-1]
+            last = self._base._m2i[opp_history[-1]]
             transitions = Counter()
             for j in range(len(opp_history) - 1):
                 if opp_history[j] == last:
@@ -1900,8 +1900,8 @@ class MixtureModel(Algorithm):
 
         # Expert 3: Win-Stay Lose-Shift
         if my_history:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1] if opp_history else Move.ROCK
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]] if opp_history else Move.ROCK
             if BEATS[my_last] == opp_last or my_last == opp_last:
                 votes.append(my_last)
             else:
@@ -1957,7 +1957,7 @@ class SleeperAgent(Algorithm):
 
         # Markov prediction
         if len(opp_history) >= 2:
-            last = opp_history[-1]
+            last = self._base._m2i[opp_history[-1]]
             transitions = Counter()
             for j in range(len(opp_history) - 1):
                 if opp_history[j] == last:
@@ -2020,7 +2020,7 @@ class Shapeshifter(Algorithm):
         if phase == 3:
             # Markov
             if len(opp_history) >= 2:
-                last = opp_history[-1]
+                last = self._base._m2i[opp_history[-1]]
                 transitions = Counter()
                 for j in range(len(opp_history) - 1):
                     if opp_history[j] == last:
@@ -2168,8 +2168,8 @@ class GrudgeHolder(Algorithm):
             return self.rng.choice(MOVES)
 
         # Update grudges from last round
-        my_last = my_history[-1]
-        opp_last = opp_history[-1]
+        my_last = self._base._m2i[my_history[-1]]
+        opp_last = self._base._m2i[opp_history[-1]]
         if BEATS[opp_last] == my_last:  # we lost
             self._grudges[my_last] += 1
         elif BEATS[my_last] == opp_last:  # we won
@@ -2293,7 +2293,7 @@ class LempelZivPredictor(Algorithm):
         if not opp_history:
             return self.rng.choice(MOVES)
 
-        last = opp_history[-1]
+        last = self._base._m2i[opp_history[-1]]
 
         # Record this move as a continuation of the previous phrase
         if self._current in self._phrases:
@@ -2362,7 +2362,7 @@ class ContextTree(Algorithm):
         if not opp_history:
             return self.rng.choice(MOVES)
 
-        last = opp_history[-1]
+        last = self._base._m2i[opp_history[-1]]
 
         # Update contexts with what we just observed
         for d in range(min(self._MAX_DEPTH, len(opp_history))):
@@ -2467,7 +2467,7 @@ class MaxEntropyPredictor(Algorithm):
         f1 = {m: (freq_counts.get(m, 0) + 1) / (total + 3) for m in MOVES}
 
         # Feature 2: 1st-order transition P(next | opp[-1])
-        last = opp_history[-1]
+        last = self._base._m2i[opp_history[-1]]
         trans = Counter()
         for i in range(len(opp_history) - 1):
             if opp_history[i] == last:
@@ -2614,7 +2614,7 @@ class MirrorBreaker(Algorithm):
 
         # Default: Markov prediction
         if len(opp_history) >= 2:
-            last = opp_history[-1]
+            last = self._base._m2i[opp_history[-1]]
             transitions = Counter()
             for j in range(len(opp_history) - 1):
                 if opp_history[j] == last:
@@ -2722,7 +2722,7 @@ class TheUsurper(Algorithm):
         else:  # random
             # Best general-purpose: combined Markov + frequency
             if len(opp_history) >= 2:
-                last = opp_history[-1]
+                last = self._base._m2i[opp_history[-1]]
                 transitions = Counter()
                 for j in range(len(opp_history) - 1):
                     if opp_history[j] == last:
@@ -2775,7 +2775,7 @@ class DoubleBluff(Algorithm):
             for i in range(3):
                 self._level_scores[i] *= self._decay
 
-            opp_last = opp_history[-1]
+            opp_last = self._base._m2i[opp_history[-1]]
             past_counts = Counter(opp_history[:-1][-30:])
             if past_counts:
                 past_pred = past_counts.most_common(1)[0][0]
@@ -3080,8 +3080,8 @@ class RegretMinimizer(Algorithm):
     def choose(self, round_num, my_history, opp_history):
         # Update regrets from last round
         if my_history and opp_history:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1]
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]]
             actual_payoff = self._payoff(my_last, opp_last)
 
             for m in MOVES:
@@ -3208,7 +3208,7 @@ class EigenvaluePredictor(Algorithm):
 
         # Update transition matrix
         if len(opp_history) >= 2:
-            prev = opp_history[-2]
+            prev = self._base._m2i[opp_history[-2]]
             curr = opp_history[-1]
             self._transitions[prev][curr] += 1
 
@@ -3504,8 +3504,8 @@ class PIDController(Algorithm):
 
         # Update from last round
         if my_history and opp_history:
-            my_last = my_history[-1]
-            opp_last = opp_history[-1]
+            my_last = self._base._m2i[my_history[-1]]
+            opp_last = self._base._m2i[opp_history[-1]]
             self._plays[my_last] += 1
             if BEATS[my_last] == opp_last:
                 self._wins[my_last] += 1
@@ -3735,8 +3735,8 @@ class LevelKReasoner(Algorithm):
     def choose(self, round_num, my_history, opp_history):
         # Update regret from last round
         if my_history and opp_history:
-            opp_last = opp_history[-1]
-            my_last = my_history[-1]
+            opp_last = self._base._m2i[opp_history[-1]]
+            my_last = self._base._m2i[my_history[-1]]
             for m in MOVES:
                 if BEATS[m] == opp_last:
                     self._regret[m] += 1.0
@@ -7313,6 +7313,213 @@ ALL_ALGORITHM_CLASSES = [
     # Supreme Algorithms (87-89)
     TheTimeTraveler, TheCollective, TheMirrorWorld,
 ]
+# ---------------------------------------------------------------------------
+# 90: The Singularity — The Ultimate Ensemble
+# ---------------------------------------------------------------------------
+
+class TheSingularity(Algorithm):
+    """The Ultimate Ensemble. Fusion of #86, #83, #84.
+
+    1. Uses Super Omniscient for raw predictive power.
+    2. Uses Doppelganger to detect regime shifts and reset/bias predictors.
+    3. Uses The Void to detect when we are being read and switch to defense.
+    """
+    name = "The Singularity"
+
+    def reset(self):
+        self._so = SuperOmniscient()
+        self._dg = TheDoppelganger()
+        self._void = TheVoid()
+        self._so.reset()
+        self._dg.reset()
+        self._void.reset()
+
+    def choose(self, round_num, my_history, opp_history):
+        # Update and get moves from all sub-bots
+        m_so = self._so.choose(round_num, my_history, opp_history)
+        m_dg = self._dg.choose(round_num, my_history, opp_history)
+        m_void = self._void.choose(round_num, my_history, opp_history) # Updates MI
+
+        # 1. Defense Check (The Void)
+        # Check internal metrics
+        mi = self._void._compute_mi()
+        if mi > 0.15: # High mutual information -> We are being read
+            # Play The Void's move (which is likely Random or defensive)
+            # Or play Mirror World logic (Counter-Counter) if we had it.
+            # Singularity plays safe: Random (via Void)
+            return m_void
+
+        # 2. Regime Shift Check (The Doppelganger)
+        # If Dopperganger detects a recent change, its confidence is higher than stale SO?
+        # Access internal change point
+        dg_cp = self._dg._change_point
+        # If change point is very recent (within last 10 rounds), trust DG
+        if len(opp_history) - dg_cp < 15 and len(opp_history) > 30:
+            return m_dg
+
+        # 3. Default: Super Omniscient Power
+        return m_so
+
+
+# ---------------------------------------------------------------------------
+# 91: The Black Hole — Recursive Anti-Prediction
+# ---------------------------------------------------------------------------
+
+class TheBlackHole(Algorithm):
+    """Enhanced Anti-Prediction.
+
+    Combines The Void (#84) and The Mirror World (#89).
+    If Mutual Information is high (they read us), instead of playing Random (Void),
+    we switch to The Mirror World (exploit their prediction of us).
+    If we are invisible, we exploit them using The Void's ensemble.
+    """
+    name = "The Black Hole"
+
+    def reset(self):
+        self._void = TheVoid()
+        self._mirror = TheMirrorWorld()
+        self._void.reset()
+        self._mirror.reset()
+
+    def choose(self, round_num, my_history, opp_history):
+        m_void = self._void.choose(round_num, my_history, opp_history)
+        m_mirror = self._mirror.choose(round_num, my_history, opp_history)
+
+        # Check MI
+        mi = self._void._compute_mi()
+
+        if mi > 0.12: # Slightly aggressive threshold
+            # They are reading us.
+            # Void would play Random.
+            # Black Hole plays Mirror World (exploits their prediction).
+            return m_mirror
+
+        # We are invisible/unpredictable
+        return m_void
+
+
+# ---------------------------------------------------------------------------
+# 92: Phoenix — Adaptive Phantom + Tilt Detection
+# ---------------------------------------------------------------------------
+
+class Phoenix(SuperOmniscient):
+    """Adaptive Phantom with Tilt Detection.
+
+    Inherits from Super Omniscient (#86).
+    Adds specific 'Tilt Predictors' that activate when opponent is on a streak
+    of losses or wins, capturing psychological biases (e.g., frustration drift).
+    """
+    name = "Phoenix"
+
+    def reset(self):
+        super().reset()
+        # Add Tilt Predictors
+        # 1. Opp loss streak > 2
+        # 2. Opp win streak > 2
+        # 3. My loss streak > 2
+        # 4. My win streak > 2
+        self._n_tilt = 4
+        self._n_total += self._n_tilt
+
+        # Resize arrays
+        self._scores = _np.zeros(self._n_total)
+        self._predictions = _np.full(self._n_total, -1, dtype=int)
+
+        # Track streaks
+        self._opp_loss_streak = 0
+        self._opp_win_streak = 0
+
+        # Tilt conditional probs: [streak_len][next_move]
+        self._tilt_opp_loss = _np.ones((10, 3))
+        self._tilt_opp_win = _np.ones((10, 3))
+
+    def _generate_predictions(self):
+        # reuse parent predictions
+        # SuperOmniscient logic is in _generate_predictions... but wait
+        # Inheritance of _generate_predictions is tricky if I can't call super() easily inside it
+        # because the parent method sets self._predictions directly and returns it.
+        # I can call super()._generate_predictions(), get the array, append my predictions?
+        # But parent method uses fixed self._n_total.
+
+        # Correction: parent _generate_predictions uses loop ranges based on self._n_hm etc.
+        # It fills self._predictions up to self._n_total - (extras).
+
+        # To avoid complexity without full copy-paste, I will rely on the fact that
+        # SuperOmniscient._generate_predictions fills indices 0 to X.
+        # I increased _n_total. So I can just fill the end indices.
+
+        # Run parent logic
+        # Ideally I should copy the code, but 'enhance existing' implies reusing.
+        # Using composition or full copy is safer.
+        # Let's use Composition for Phoenix too, to avoid broken inheritance assumptions.
+        # Actually, full copy-paste of SuperOmniscient logic + extras is safest.
+        # But for brevity here, I'll attempt the 'extension' if safe.
+        # SuperOmniscient uses specific indices? No, it uses 'base' offsets.
+        # It calculates _n_total in reset.
+
+        # Let's use Composition/Wrapper for Phoenix too.
+        pass
+
+    # Re-implementing Phoenix as Wrapper to avoid inheritance complexity
+
+class Phoenix(Algorithm):
+    name = "Phoenix"
+    def reset(self):
+        self._base = SuperOmniscient()
+        self._base.reset()
+        # Tilt tracking
+        self._opp_loss_streak = 0
+        self._opp_win_streak = 0
+        self._tilt_loss_track = _np.ones((3, 3)) # [last_move][next_move] after loss
+        self._tilt_win_track = _np.ones((3, 3))
+
+    def choose(self, round_num, my_history, opp_history):
+        # Base move
+        m_base = self._base.choose(round_num, my_history, opp_history)
+
+        # Update streaks
+        if opp_history and len(opp_history) >= 2:
+            last = self._base._m2i[opp_history[-1]]
+            prev = self._base._m2i[opp_history[-2]]
+            my_last = self._base._m2i[my_history[-1]]
+            my_prev = self._base._m2i[my_history[-2]]
+
+            # Did opp lose last round?
+            # (My prev - Opp prev) % 3 == 1
+            if (my_prev - prev) % 3 == 1:
+                self._opp_loss_streak += 1
+                self._opp_win_streak = 0
+                # Update tracker: they played 'last' after losing
+                self._tilt_loss_track[prev][last] += 1
+            elif (prev - my_prev) % 3 == 1:
+                self._opp_win_streak += 1
+                self._opp_loss_streak = 0
+                self._tilt_win_track[prev][last] += 1
+            else:
+                self._opp_loss_streak = 0
+                self._opp_win_streak = 0
+
+        # Tilt override
+        # If opp is on loose streak > 2, predict their move using specific bias
+        if self._opp_loss_streak >= 2:
+            # Predict based on what they usually do after losing with 'last'
+            last = self._base._m2i[opp_history[-1]]
+            probs = self._tilt_loss_track[last]
+            pred = int(_np.argmax(probs))
+            # If significant bias
+            if probs[pred] / probs.sum() > 0.6:
+                return self._base._i2m[(pred + 1) % 3]
+
+        if self._opp_win_streak >= 2:
+            last = self._base._m2i[opp_history[-1]]
+            probs = self._tilt_win_track[last]
+            pred = int(_np.argmax(probs))
+            if probs[pred] / probs.sum() > 0.6:
+                return self._base._i2m[(pred + 1) % 3]
+
+        return m_base
+
+ALL_ALGORITHM_CLASSES.extend([TheSingularity, TheBlackHole, Phoenix])
 
 
 def get_all_algorithms() -> list[Algorithm]:
