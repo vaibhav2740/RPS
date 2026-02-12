@@ -87,12 +87,23 @@ class Cycle(Algorithm):
 # 6: Mirror Opponent (copy last move)
 # ---------------------------------------------------------------------------
 
-class MirrorOpponent(Algorithm):
-    name = "Mirror Opponent"
+class PersistentRandom(Algorithm):
+    """Picks a random move and plays it for a random duration (5-15 rounds).
+    Then picks a new move and repeats.
+    """
+    name = "Persistent Random"
+    
+    def reset(self):
+        self._current_move = self.rng.choice(MOVES)
+        self._remaining = 0
+        
     def choose(self, round_num, my_history, opp_history):
-        if not opp_history:
-            return self.rng.choice(MOVES)
-        return opp_history[-1]
+        if self._remaining <= 0:
+             self._current_move = self.rng.choice(MOVES)
+             self._remaining = self.rng.randint(5, 15)
+        
+        self._remaining -= 1
+        return self._current_move
 
 
 # ---------------------------------------------------------------------------
@@ -163,23 +174,16 @@ class MarkovPredictor(Algorithm):
 # 11: Pattern Detector (looks for repeating N-grams)
 # ---------------------------------------------------------------------------
 
-class PatternDetector(Algorithm):
-    name = "Pattern Detector"
+class Spiral(Algorithm):
+    """Plays R, R, P, P, S, S... in a continuous spiral pattern.
+    Slower than the standard Cycle.
+    """
+    name = "Spiral"
 
     def choose(self, round_num, my_history, opp_history):
-        if len(opp_history) < 3:
-            return self.rng.choice(MOVES)
-        # Try pattern lengths 5 down to 2
-        for length in range(min(5, len(opp_history) - 1), 1, -1):
-            pattern = tuple(opp_history[-length:])
-            # Search for this pattern earlier in history
-            for i in range(len(opp_history) - length):
-                if tuple(opp_history[i:i + length]) == pattern:
-                    if i + length < len(opp_history):
-                        predicted = opp_history[i + length]
-                        return _counter_move(predicted)
-        # Fallback
-        return _counter_move(opp_history[-1])
+        # Period 6: 0,1 -> R; 2,3 -> P; 4,5 -> S
+        idx = (round_num // 2) % 3
+        return MOVES[idx]
 
 
 # ---------------------------------------------------------------------------
@@ -2147,31 +2151,42 @@ class HotStreak(Algorithm):
 # 45: Contrarian (plays the least expected move)
 # ---------------------------------------------------------------------------
 
-class Contrarian(Algorithm):
-    """Plays the move the opponent would LEAST expect.
-
-    Tracks its own move history and deliberately plays the move
-    it has used least recently. Opponents modeling our frequency
-    will predict our most common move — we play the rarest one.
+class MarkovGenerator(Algorithm):
+    """Generates moves based on a random internal Markov chain.
+    
+    Creates a random transition matrix on reset and follows it.
+    Does not adapt to opponent; acts as a 'structured noise' generator.
+    Resets the matrix every 50 rounds to change the structure.
     """
-    name = "Contrarian"
+    name = "Markov Generator"
+    
+    def reset(self):
+        # 3x3 transition matrix
+        self._matrix = [
+            [self.rng.random() for _ in range(3)],
+            [self.rng.random() for _ in range(3)],
+            [self.rng.random() for _ in range(3)]
+        ]
+        # Normalize
+        for row in self._matrix:
+            total = sum(row)
+            for i in range(3): row[i] /= total
+            
+        self._last_idx = self.rng.randint(0, 2)
+        self._rounds_until_reset = 50
 
     def choose(self, round_num, my_history, opp_history):
-        if not my_history:
-            return self.rng.choice(MOVES)
-
-        # Find our least-played move recently
-        window = my_history[-30:] if len(my_history) >= 30 else my_history
-        counts = Counter(window)
-
-        # Ensure all moves counted
-        for m in MOVES:
-            if m not in counts:
-                counts[m] = 0
-
-        # Play our LEAST common move (the one opponents won't predict)
-        least_common = min(MOVES, key=lambda m: counts[m])
-        return least_common
+        if self._rounds_until_reset <= 0:
+            self.reset()
+            
+        self._rounds_until_reset -= 1
+        
+        # Select next move based on current state and matrix probabilities
+        probs = self._matrix[self._last_idx]
+        next_idx = self.rng.choices([0,1,2], weights=probs, k=1)[0]
+        self._last_idx = next_idx
+        
+        return MOVES[next_idx]
 
 
 # ---------------------------------------------------------------------------
@@ -4551,6 +4566,902 @@ class SelfModelDetector(Algorithm):
         return _counter_move(predictions[best])
 
 
+
+# ===========================================================================
+#  CREATIVE BOOST ALGORITHMS (77-100)
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# 77: PiBot (Digits of Pi)
+# ---------------------------------------------------------------------------
+
+class PiBot(Algorithm):
+    """Uses the digits of Pi to determine moves.
+    
+    Deterministic but high entropy. Uses the first 1000 digits of Pi.
+    Maps digits: 0-2->Rock, 3-5->Paper, 6-9->Scissors (roughly balanced).
+    """
+    name = "PiBot"
+    _PI_DIGITS = "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989"
+
+    def choose(self, round_num, my_history, opp_history):
+        digit = int(self._PI_DIGITS[round_num % len(self._PI_DIGITS)])
+        if digit <= 2:
+            return Move.ROCK
+        elif digit <= 5:
+            return Move.PAPER
+        else:
+            return Move.SCISSORS
+
+
+# ---------------------------------------------------------------------------
+# 78: GoldenRatio (Chaos via Phi)
+# ---------------------------------------------------------------------------
+
+class GoldenRatio(Algorithm):
+    """Uses the Golden Ratio to generate chaotic deterministic moves.
+    
+    Formula: move = floor((round_num * φ) % 1 * 3)
+    This creates a quasi-periodic sequence that is hard to predict without
+    knowing the exact formula.
+    """
+    name = "Golden Ratio"
+    _PHI = 1.61803398875
+
+    def choose(self, round_num, my_history, opp_history):
+        val = (round_num * self._PHI) % 1.0
+        return MOVES[int(val * 3)]
+
+
+# ---------------------------------------------------------------------------
+# 79: StockBroker (Market Simulation)
+# ---------------------------------------------------------------------------
+
+class StockBroker(Algorithm):
+    """Treats R, P, S as stocks in a volatile market.
+    
+    - 'Stocks' gain value when they would have won the last round.
+    - 'Stocks' lose value when they would have lost.
+    - Adds random 'market noise' (volatility).
+    - Always 'buys' (plays) the highest valued stock.
+    """
+    name = "Stock Broker"
+
+    def reset(self):
+        self._prices = {m: 100.0 for m in MOVES}
+        self._volatility = 2.0
+
+    def choose(self, round_num, my_history, opp_history):
+        if opp_history:
+            last_opp = opp_history[-1]
+            # Update market
+            for m in MOVES:
+                # Inflation/Decay
+                self._prices[m] *= 0.99
+                
+                # Market reaction
+                if BEATS[m] == last_opp:       # Winning move
+                    self._prices[m] *= 1.05    # +5%
+                elif m == last_opp:            # Draw move
+                    self._prices[m] *= 1.0     # 0%
+                else:                          # Losing move
+                    self._prices[m] *= 0.90    # -10%
+                
+                # Add noise
+                noise = (self.rng.random() - 0.5) * self._volatility
+                self._prices[m] += noise
+
+        # Pick highest value
+        return max(self._prices, key=self._prices.get)
+
+
+# ---------------------------------------------------------------------------
+# 80: QuantumCollapse (Superposition)
+# ---------------------------------------------------------------------------
+
+class QuantumCollapse(Algorithm):
+    """Maintains a 'superposition' of move probabilities.
+    
+    - Wins observable -> Reinforces the state (constructive interference).
+    - Losses observable -> Collapses the probability (destructive interference).
+    - Renormalizes after every observation.
+    """
+    name = "Quantum Collapse"
+
+    def reset(self):
+        self._probs = {m: 1.0/3.0 for m in MOVES}
+
+    def choose(self, round_num, my_history, opp_history):
+        # Collapse/Observe based on last round result
+        if my_history and opp_history:
+            my_last = my_history[-1]
+            opp_last = opp_history[-1]
+            
+            if BEATS[my_last] == opp_last:
+                # Win: Constructive interference
+                self._probs[my_last] *= 1.5
+            elif BEATS[opp_last] == my_last:
+                # Loss: Destructive interference (collapse)
+                self._probs[my_last] *= 0.1
+            
+            # Renormalize
+            total = sum(self._probs.values())
+            for m in MOVES:
+                self._probs[m] /= total
+            
+            # Entropy injection (uncertainty principle)
+            for m in MOVES:
+                self._probs[m] = self._probs[m] * 0.9 + 0.1 * (1.0/3.0)
+
+        # Sample from distribution
+        r = self.rng.random()
+        cumulative = 0.0
+        for m in MOVES:
+            cumulative += self._probs[m]
+            if r <= cumulative:
+                return m
+        return MOVES[-1]
+
+
+# ---------------------------------------------------------------------------
+# 81: SoundWave (Oscillation)
+# ---------------------------------------------------------------------------
+
+class SoundWave(Algorithm):
+    """Generates moves based on oscillating sine waves.
+    
+    Uses constructive interference of two sine waves with different frequencies
+    to create a complex but deterministic pattern.
+    """
+    name = "Sound Wave"
+
+    def choose(self, round_num, my_history, opp_history):
+        import math
+        # Combine two waves: fast freq and slow freq
+        t = round_num
+        wave = math.sin(t * 0.2) + math.sin(t * 0.05)
+        # wave range is approx [-2, 2]
+        
+        # Map to 0, 1, 2
+        value = (wave + 2) / 4.0  # Normalized 0-1
+        idx = int(value * 3) % 3
+        return MOVES[idx]
+
+
+
+# ---------------------------------------------------------------------------
+# 82: Ackermann (Recursive Depth)
+# ---------------------------------------------------------------------------
+
+class Ackermann(Algorithm):
+    """Uses the Ackermann function to determine lookback depth.
+    
+    The Ackermann function grows extremely rapidly. We use small inputs
+    derived from the round number to get a dynamic, non-linear lookback distance.
+    """
+    name = "Ackermann"
+    _MEMO = {}
+
+    def _ackermann(self, m, n):
+        if (m, n) in self._MEMO:
+            return self._MEMO[(m, n)]
+        if m == 0:
+            return n + 1
+        elif n == 0:
+            res = self._ackermann(m - 1, 1)
+        else:
+            res = self._ackermann(m - 1, self._ackermann(m, n - 1))
+        
+        self._MEMO[(m, n)] = res
+        return res
+
+    def choose(self, round_num, my_history, opp_history):
+        if not opp_history:
+            return self.rng.choice(MOVES)
+
+        # Inputs must be small to avoid recursion depth errors
+        # A(3, n) grows very deep. We stick to m <= 3, n <= 6
+        m = (round_num // 10) % 4
+        n = round_num % 5
+        
+        try:
+            val = self._ackermann(m, n)
+        except RecursionError:
+            val = 10  # Fallback
+            
+        # Use value as lookback index
+        idx = val % len(opp_history)
+        predicted = opp_history[-idx-1]
+        return _counter_move(predicted)
+
+
+# ---------------------------------------------------------------------------
+# 83: PrimeHunter (Prime Number Strategy)
+# ---------------------------------------------------------------------------
+
+class PrimeHunter(Algorithm):
+    """Plays aggressively only on prime-numbered rounds.
+    
+    - If round_num is prime: Plays a hard counter to opponent's last move.
+    - If round_num is composite: Plays completely random to confuse prediction.
+    """
+    name = "Prime Hunter"
+
+    def _is_prime(self, n):
+        if n < 2: return False
+        if n == 2: return True
+        if n % 2 == 0: return False
+        for i in range(3, int(n**0.5) + 1, 2):
+            if n % i == 0:
+                return False
+        return True
+
+    def choose(self, round_num, my_history, opp_history):
+        # round_num is 0-indexed, so we check using mathematical 1-based index
+        n = round_num + 1
+        if self._is_prime(n):
+            if opp_history:
+                return _counter_move(opp_history[-1])
+            return self.rng.choice(MOVES)
+        else:
+            return self.rng.choice(MOVES)
+
+
+# ---------------------------------------------------------------------------
+# 84: CompressionBot (Information Theory)
+# ---------------------------------------------------------------------------
+
+class CompressionBot(Algorithm):
+    """Uses zlib compression to predict the most likely next move.
+    
+    Based on Normalized Compression Distance (NCD).
+    It asks: "Which hypothetical next move by the opponent makes their
+    history string most compressible?"
+    The most compressible sequence is the most predictable one.
+    """
+    name = "Compression Bot"
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 10:
+            return self.rng.choice(MOVES)
+            
+        import zlib
+        
+        # Convert history to bytes string
+        # e.g. R, P, S -> "RPS"
+        # We define rough mapping for compression text
+        char_map = {Move.ROCK: b'R', Move.PAPER: b'P', Move.SCISSORS: b'S'}
+        
+        history_bytes = b"".join(char_map[m] for m in opp_history)
+        
+        best_pred = None
+        min_size = float('inf')
+        
+        # Hypothesize opponent's next move
+        for m in MOVES:
+            candidate = history_bytes + char_map[m]
+            # Compress
+            compressed = zlib.compress(candidate)
+            size = len(compressed)
+            
+            if size < min_size:
+                min_size = size
+                best_pred = m
+            elif size == min_size and self.rng.random() < 0.5:
+                best_pred = m
+                
+        return _counter_move(best_pred)
+
+
+# ---------------------------------------------------------------------------
+# 85: EquilibriumBreaker (Nash Deviation)
+# ---------------------------------------------------------------------------
+
+class EquilibriumBreaker(Algorithm):
+    """Punishes deviations from Nash Equilibrium.
+    
+    If the opponent plays any move > 33.3% of the time, this bot
+    identifies the frequency bias and exploits it, but remains close to
+    random to avoid being exploited itself.
+    """
+    name = "Equilibrium Breaker"
+
+    def choose(self, round_num, my_history, opp_history):
+        if not opp_history:
+            return self.rng.choice(MOVES)
+            
+        counts = Counter(opp_history)
+        total = len(opp_history)
+        
+        # Find if any move is over-represented
+        most_common = counts.most_common(1)[0]
+        move, count = most_common
+        freq = count / total
+        
+        if freq > 0.35:
+            # Exploit: play the counter to their favorite move
+            # But mix in some randomness
+            if self.rng.random() < (freq - 0.33) * 3: # Scale aggression with deviation
+                return _counter_move(move)
+        
+        return self.rng.choice(MOVES)
+
+
+# ---------------------------------------------------------------------------
+# 86: DelayedMirror (Lagged Copy)
+# ---------------------------------------------------------------------------
+
+class DelayedMirror(Algorithm):
+    """Mirrors the opponent's move from 2 rounds ago.
+    
+    Effective against bots that expect immediate mirroring (like Tit-for-Tat)
+    or immediate countering (like Win-Stay Lose-Shift).
+    """
+    name = "Delayed Mirror"
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 2:
+            return self.rng.choice(MOVES)
+        return opp_history[-2]
+
+
+
+# ---------------------------------------------------------------------------
+# 87: GeneSequencer (Biological Pattern)
+# ---------------------------------------------------------------------------
+
+class GeneSequencer(Algorithm):
+    """Treats moves as DNA sequences (codons) and allows for mutations.
+    
+    Looks for the last 5 moves (a 'gene') in historical data.
+    Unlike standard pattern matchers, this allows for 1 'mutation' (mismatch)
+    when searching, simulating biological sequence alignment.
+    """
+    name = "Gene Sequencer"
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 20:
+            return self.rng.choice(MOVES)
+            
+        # Target gene: last 6 moves
+        gene_len = 6
+        target = opp_history[-gene_len:]
+        
+        # Search history for approximate matches (hamming distance <= 1)
+        best_match_idx = -1
+        
+        # Look back from end
+        for i in range(len(opp_history) - gene_len - 1, -1, -1):
+            candidate = opp_history[i : i+gene_len]
+            if len(candidate) != gene_len: continue
+            
+            # Hamming distance
+            dist = sum(1 for a, b in zip(candidate, target) if a != b)
+            
+            if dist <= 1:
+                # Found a homologous sequence!
+                best_match_idx = i
+                break
+                
+        if best_match_idx != -1:
+            # Predict the move that followed the gene
+            return _counter_move(opp_history[best_match_idx + gene_len])
+            
+        return self.rng.choice(MOVES)
+
+
+# ---------------------------------------------------------------------------
+# 88: Zodiac (Cyclic Personalities)
+# ---------------------------------------------------------------------------
+
+class Zodiac(Algorithm):
+    """Cycles through 12 different personality archetypes based on round number.
+    
+    Each 'sign' (every 12th round) has a distinct strategy:
+    Aries(Aggro), Taurus(Stubborn), Gemini(Dual), Cancer(Paper), Leo(Winner),
+    Virgo(Analytic), Libra(Balanced), Scorpio(Counter), Sagittarius(Random),
+    Capricorn(WSLS), Aquarius(Chaos), Pisces(Mirror).
+    """
+    name = "Zodiac"
+
+    def choose(self, round_num, my_history, opp_history):
+        sign = round_num % 12
+        
+        if sign == 0:   # Aries: Rock (Aggressive)
+            return Move.ROCK
+        elif sign == 1: # Taurus: Repeat last (Stubborn)
+            return my_history[-1] if my_history else Move.ROCK
+        elif sign == 2: # Gemini: R or P (Dual)
+            return self.rng.choice([Move.ROCK, Move.PAPER])
+        elif sign == 3: # Cancer: Paper (Defensive/Shell)
+            return Move.PAPER
+        elif sign == 4: # Leo: Play whatever has won most (Pride)
+            if not my_history: return Move.ROCK
+            wins = Counter([m for i, m in enumerate(my_history) if i < len(opp_history) and BEATS[m] == opp_history[i]])
+            return wins.most_common(1)[0][0] if wins else Move.ROCK
+        elif sign == 5: # Virgo: Frequency Counter (Analytic)
+            if not opp_history: return Move.PAPER
+            return _counter_move(Counter(opp_history).most_common(1)[0][0])
+        elif sign == 6: # Libra: Play least frequent (Balance)
+            if not my_history: return Move.PAPER
+            return Counter(my_history).most_common()[-1][0]
+        elif sign == 7: # Scorpio: Counter last (Vengeful)
+            if not opp_history: return Move.SCISSORS
+            return _counter_move(opp_history[-1])
+        elif sign == 8: # Sagittarius: Random (Free spirit)
+            return self.rng.choice(MOVES)
+        elif sign == 9: # Capricorn: WSLS (Practical)
+            if len(my_history) < 2: return Move.ROCK
+            last_res = 1 if BEATS[my_history[-1]] == opp_history[-1] else -1 if BEATS[opp_history[-1]] == my_history[-1] else 0
+            if last_res >= 0: return my_history[-1]
+            else: return _counter_move(opp_history[-1])
+        elif sign == 10: # Aquarius: Chaos
+            return MOVES[int((round_num * 1.618) % 1 * 3)]
+        else: # Pisces: Mirror (Empathetic)
+            return opp_history[-1] if opp_history else Move.PAPER
+
+
+# ---------------------------------------------------------------------------
+# 89: NeuroEvo (Single Neuron Mutation)
+# ---------------------------------------------------------------------------
+
+class NeuroEvo(Algorithm):
+    """A minimal neural network (perceptron) that evolves weights on failure.
+    
+    Inputs: encoded history of last round.
+    Weights: Evolve (add noise) whenever losing streak >= 3.
+    """
+    name = "Neuro Evo"
+
+    def reset(self):
+        # 3 moves * 2 players = 6 inputs. 3 outputs (scores for R,P,S).
+        # Weights: 6x3 matrix flatten to 18
+        self._weights = [self.rng.uniform(-1, 1) for _ in range(18)]
+        self._streak = 0
+
+    def choose(self, round_num, my_history, opp_history):
+        if not opp_history:
+            return self.rng.choice(MOVES)
+
+        # Update streak
+        last_res = 0 # draw
+        if BEATS[my_history[-1]] == opp_history[-1]:
+            self._streak = 0
+        elif BEATS[opp_history[-1]] == my_history[-1]:
+            self._streak += 1
+        else:
+            self._streak = 0
+            
+        # Mutate if stuck losing
+        if self._streak >= 3:
+            self._weights = [w + self.rng.uniform(-0.5, 0.5) for w in self._weights]
+            self._streak = 0
+
+        # Encode input (One-hot for last moves: My[R,P,S], Opp[R,P,S])
+        inputs = [0] * 6
+        inputs[MOVES.index(my_history[-1])] = 1
+        inputs[3 + MOVES.index(opp_history[-1])] = 1
+        
+        # Forward pass
+        scores = [0.0] * 3
+        for out_i in range(3):
+            for in_i in range(6):
+                scores[out_i] += inputs[in_i] * self._weights[in_i * 3 + out_i]
+
+        # Argmax
+        best_idx = scores.index(max(scores))
+        return MOVES[best_idx]
+
+
+# ---------------------------------------------------------------------------
+# 90: GeometryBot (Centroid Strategy)
+# ---------------------------------------------------------------------------
+
+class GeometryBot(Algorithm):
+    """Visualizes moves as vectors on an equilateral triangle unit circle.
+    
+    - Rock:     (1, 0)
+    - Paper:    (-0.5, 0.866)
+    - Scissors: (-0.5, -0.866)
+    
+    Calculates the centroid (average vector) of opponent's recent history.
+    The response is the move corresponding to the vector *opposite* the centroid.
+    This effectively counters the opponent's 'average bias' in 2D space.
+    """
+    name = "Geometry Bot"
+
+    def choose(self, round_num, my_history, opp_history):
+        if not opp_history:
+            return self.rng.choice(MOVES)
+
+        # Unit vectors
+        vecs = {
+            Move.ROCK: (1.0, 0.0),
+            Move.PAPER: (-0.5, 0.8660254),
+            Move.SCISSORS: (-0.5, -0.8660254)
+        }
+        
+        # Compute centroid of last 20 moves
+        x_sum, y_sum = 0.0, 0.0
+        window = opp_history[-20:]
+        for m in window:
+            vx, vy = vecs[m]
+            x_sum += vx
+            y_sum += vy
+            
+        avg_x = x_sum / len(window)
+        avg_y = y_sum / len(window)
+        
+        # We want to counter the bias.
+        # If bias is towards Rock ((1,0)), we want to play Paper.
+        # So we look for the move vector that is closest to (-avg_y, avg_x)? 
+        # No, simpler: Expected move is roughly the centroid direction.
+        # We want to beat the expected move.
+        # If expected is Rock, we want Paper.
+        # Paper is +120 degrees from Rock.
+        # So specific target angle = centroid_angle + 120 degrees.
+        
+        import math
+        centroid_angle = math.atan2(avg_y, avg_x)
+        target_angle = centroid_angle + (2 * math.pi / 3) # +120 deg
+        
+        # Find move closest to target angle
+        best_move = None
+        max_dot = -2.0
+        
+        tx = math.cos(target_angle)
+        ty = math.sin(target_angle)
+        
+        for m, (vx, vy) in vecs.items():
+            dot = tx*vx + ty*vy
+            if dot > max_dot:
+                max_dot = dot
+                best_move = m
+                
+        return best_move
+
+
+
+# ---------------------------------------------------------------------------
+# 91: GamblersFallacy (Monte Carlo Fallacy)
+# ---------------------------------------------------------------------------
+
+class GamblersFallacy(Algorithm):
+    """Assume that if a move hasn't happened in a while, it is 'due'.
+    
+    looks at the last 20 moves. Plays the move that the opponent has
+    played the LEAST frequently, expecting them to 'balance' it out.
+    """
+    name = "Gambler's Fallacy"
+
+    def choose(self, round_num, my_history, opp_history):
+        if not opp_history:
+            return self.rng.choice(MOVES)
+            
+        window = opp_history[-20:]
+        counts = Counter(window)
+        
+        # Find least common move
+        # Note: most_common[:-1] works, but we need to handle 0 counts
+        best_move = None
+        min_count = float('inf')
+        
+        for m in MOVES:
+            c = counts[m]
+            if c < min_count:
+                min_count = c
+                best_move = m
+            elif c == min_count and self.rng.random() < 0.5:
+                best_move = m
+                
+        # If we think opponent will play 'best_move', we counter it
+        return _counter_move(best_move)
+
+
+# ---------------------------------------------------------------------------
+# 92: NashStabilizer (Forced Balance)
+# ---------------------------------------------------------------------------
+
+class NashStabilizer(Algorithm):
+    """ Tries to enforce a perfect 33/33/33 distribution in its OWN history.
+    
+    If it has played Rock too little, it plays Rock.
+    This makes it asymptotically unexploitable by frequency analysis.
+    """
+    name = "Nash Stabilizer"
+
+    def choose(self, round_num, my_history, opp_history):
+        if not my_history:
+            return self.rng.choice(MOVES)
+            
+        counts = Counter(my_history)
+        
+        # Play the move I have played least
+        best_move = None
+        min_count = float('inf')
+        
+        for m in MOVES:
+            c = counts[m]
+            if c < min_count:
+                min_count = c
+                best_move = m
+            elif c == min_count and self.rng.random() < 0.5:
+                best_move = m
+                
+        return best_move
+
+
+# ---------------------------------------------------------------------------
+# 93: StubbornLoser (Contrarian WSLS)
+# ---------------------------------------------------------------------------
+
+class StubbornLoser(Algorithm):
+    """The opposite of Win-Stay Lose-Shift.
+    
+    - Win: Shift (Don't push your luck).
+    - Lose: Stay (Stubbornly try again, doubling down).
+    
+    Beats standard WSLS players who expect you to shift on loss.
+    """
+    name = "Stubborn Loser"
+
+    def choose(self, round_num, my_history, opp_history):
+        if not my_history:
+            return self.rng.choice(MOVES)
+            
+        my_last = my_history[-1]
+        opp_last = opp_history[-1]
+        
+        if BEATS[my_last] == opp_last:
+            # Won: Shift
+            # Shift to what? Random non-last
+            available = [m for m in MOVES if m != my_last]
+            return self.rng.choice(available)
+        elif my_last == opp_last:
+            # Draw: Random
+            return self.rng.choice(MOVES)
+        else:
+            # Lost: Stay (Stubborn)
+            return my_last
+
+
+# ---------------------------------------------------------------------------
+# 94: TraitorMirror (Mirror with Betrayal)
+# ---------------------------------------------------------------------------
+
+class TraitorMirror(Algorithm):
+    """Mirrors the opponent 80% of the time to build trust.
+    
+    But 20% of the time, it 'betrays' the mirror logic by playing
+    the counter to the opponent's last move, catching them if they
+    try to counter the expected mirror.
+    """
+    name = "Traitor Mirror"
+
+    def choose(self, round_num, my_history, opp_history):
+        if not opp_history:
+            return self.rng.choice(MOVES)
+            
+        opp_last = opp_history[-1]
+        
+        if self.rng.random() < 0.8:
+            # Mirror (Trust)
+            return opp_last
+        else:
+            # Betray (Counter)
+            return _counter_move(opp_last)
+
+
+# ---------------------------------------------------------------------------
+# 95: OpponentPersona (Pattern Classification)
+# ---------------------------------------------------------------------------
+
+class OpponentPersona(Algorithm):
+    """Classifies opponent into a 'Persona' based on history.
+    
+    - Aggressive (>40% Rock): Counts with Paper.
+    - Defensive (>40% Paper): Counts with Scissors.
+    - Evasive (>40% Scissors): Counts with Rock.
+    - Balanced: Plays Random.
+    """
+    name = "Opponent Persona"
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 10:
+            return self.rng.choice(MOVES)
+            
+        counts = Counter(opp_history[-30:])
+        total = sum(counts.values())
+        
+        if counts[Move.ROCK] / total > 0.4:
+            return Move.PAPER # Counter Aggressive
+        elif counts[Move.PAPER] / total > 0.4:
+            return Move.SCISSORS # Counter Defensive
+        elif counts[Move.SCISSORS] / total > 0.4:
+            return Move.ROCK # Counter Evasive
+            
+        return self.rng.choice(MOVES)
+
+
+# ---------------------------------------------------------------------------
+# 96: ExponentialBackoff (Recovery Mode)
+# ---------------------------------------------------------------------------
+
+class ExponentialBackoff(Algorithm):
+    """Detects losing streaks and backs off into randomness.
+    
+    If on a losing streak (N), play purely random for 2^N rounds
+    to break any predictive lock the opponent has.
+    """
+    name = "Exponential Backoff"
+    
+    def reset(self):
+        self._backoff_rounds = 0
+        
+    def choose(self, round_num, my_history, opp_history):
+        if self._backoff_rounds > 0:
+            self._backoff_rounds -= 1
+            return self.rng.choice(MOVES)
+            
+        if not my_history:
+            return self.rng.choice(MOVES)
+            
+        # Check losing streak
+        losses = 0
+        for i in range(len(my_history)-1, -1, -1):
+            if BEATS[opp_history[i]] == my_history[i]:
+                losses += 1
+            else:
+                break
+                
+        if losses > 1:
+            self._backoff_rounds = 2 ** min(5, losses) # Cap at 32 rounds
+            return self.rng.choice(MOVES)
+            
+        # Default strategy: Counter last (heuristic)
+        return _counter_move(opp_history[-1])
+
+
+# ---------------------------------------------------------------------------
+# 97: PatternBreaker (Self-Analysis)
+# ---------------------------------------------------------------------------
+
+class PatternBreaker(Algorithm):
+    """Monitors its OWN moves to detect and break obviously patterns.
+    
+    If it detects it has played R-R-R or R-P-S (cycles),
+    it intentionally deviates from that pattern.
+    """
+    name = "Pattern Breaker"
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(my_history) < 3:
+            return self.rng.choice(MOVES)
+            
+        # Check for repetition R-R-R
+        if my_history[-1] == my_history[-2] == my_history[-3]:
+            # Don't play it again!
+            bad_move = my_history[-1]
+            return self.rng.choice([m for m in MOVES if m != bad_move])
+            
+        # Check for cycle R-P-S
+        # (Assuming index order is R,P,S)
+        last_idx = MOVES.index(my_history[-1])
+        prev_idx = MOVES.index(my_history[-2])
+        if (prev_idx + 1) % 3 == last_idx:
+            # We are cycling up. Don't complete the cycle.
+            # Next in cycle would be (last_idx + 1) % 3
+            bad_move = MOVES[(last_idx + 1) % 3]
+            return self.rng.choice([m for m in MOVES if m != bad_move])
+            
+        # Default: Counter opponent
+        return _counter_move(opp_history[-1])
+
+
+# ---------------------------------------------------------------------------
+# 98: SlidingWindowVote (Ensemble)
+# ---------------------------------------------------------------------------
+
+class SlidingWindowVote(Algorithm):
+    """Takes a vote from 3 distinct historical windows.
+    
+    Predicts opponent move based on:
+    1. Short term (last 5)
+    2. Medium term (last 20)
+    3. Long term (last 100)
+    
+    Plays the counter to the majority vote prediction.
+    """
+    name = "Sliding Window Vote"
+
+    def choose(self, round_num, my_history, opp_history):
+        if len(opp_history) < 5:
+            return self.rng.choice(MOVES)
+            
+        votes = []
+        for w in [5, 20, 100]:
+            if len(opp_history) >= w:
+                most_common = Counter(opp_history[-w:]).most_common(1)[0][0]
+                votes.append(most_common)
+                
+        if not votes:
+            return self.rng.choice(MOVES)
+            
+        # Majority vote on what OP will play
+        final_prediction = Counter(votes).most_common(1)[0][0]
+        return _counter_move(final_prediction)
+
+
+# ---------------------------------------------------------------------------
+# 99: DoubleAgent (Mode Switcher)
+# ---------------------------------------------------------------------------
+
+class DoubleAgent(Algorithm):
+    """Switches strategies every 10 rounds to confuse opponent.
+    
+    - Agent A (Rounds 0-9): Mirror Opponent.
+    - Agent B (Rounds 10-19): Counter Opponent.
+    - Repeat.
+    """
+    name = "Double Agent"
+
+    def choose(self, round_num, my_history, opp_history):
+        if not opp_history: return self.rng.choice(MOVES)
+        
+        mode = (round_num // 10) % 2
+        
+        if mode == 0:
+            # Cooperative/Mirror
+            return opp_history[-1]
+        else:
+            # Aggressive/Counter
+            return _counter_move(opp_history[-1])
+
+
+# ---------------------------------------------------------------------------
+# 100: CounterStrike (Anti-WSLS)
+# ---------------------------------------------------------------------------
+
+class CounterStrike(Algorithm):
+    """Specifically targets Win-Stay Lose-Shift (WSLS) logic.
+    
+    Assumes opponent is playing WSLS:
+    - If I Won (Opp Lost): They will Shift. (To beat my last move). 
+      Prediction: They play Counter(MyLast).
+      Response: I play Counter(Counter(MyLast)).
+      
+    - If I Lost (Opp Won): They will Stay. (Replay their last).
+      Prediction: They play OppLast.
+      Response: I play Counter(OppLast).
+    """
+    name = "Counter Strike"
+
+    def choose(self, round_num, my_history, opp_history):
+        if not my_history:
+            return self.rng.choice(MOVES)
+            
+        my_last = my_history[-1]
+        opp_last = opp_history[-1]
+        
+        if BEATS[my_last] == opp_last:
+            # I Won. Opponent Lost.
+            # WSLS Opponent will Shift -> to Counter(my_last).
+            expected_opp_move = _counter_move(my_last)
+            return _counter_move(expected_opp_move)
+            
+        elif BEATS[opp_last] == my_last:
+            # I Lost. Opponent Won.
+            # WSLS Opponent will Stay -> OppLast.
+            expected_opp_move = opp_last
+            return _counter_move(expected_opp_move)
+            
+        else:
+            # Draw. WSLS behavior undefined (usually Random or Stay).
+            # We assume Stay.
+            return _counter_move(opp_last)
+
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -4558,9 +5469,9 @@ class SelfModelDetector(Algorithm):
 ALL_ALGORITHM_CLASSES = [
     # Baseline (1-20)
     AlwaysRock, AlwaysPaper, AlwaysScissors,
-    PureRandom, Cycle, MirrorOpponent,
+    PureRandom, Cycle, PersistentRandom,
     TitForTat, AntiTitForTat, FrequencyAnalyzer,
-    MarkovPredictor, PatternDetector, WinStayLoseShift,
+    MarkovPredictor, Spiral, WinStayLoseShift,
     MetaPredictor, NoiseStrategy, AdaptiveHybrid,
     LastMoveCounter, WeightedRandom, Punisher,
     Forgiver, ChaosStrategy,
@@ -4576,7 +5487,7 @@ ALL_ALGORITHM_CLASSES = [
     # Advanced Competitive (38-41)
     BayesianPredictor, NGramPredictor, AntiStrategyDetector, MixtureModel,
     # Creative / Deception (42-49)
-    SleeperAgent, Shapeshifter, HotStreak, Contrarian,
+    SleeperAgent, Shapeshifter, HotStreak, MarkovGenerator,
     MonteCarloPredictor, GrudgeHolder, Chameleon, FibonacciPlayer,
     # Math-heavy / Proven Concepts (50-52)
     LempelZivPredictor, ContextTree, MaxEntropyPredictor,
@@ -4594,7 +5505,15 @@ ALL_ALGORITHM_CLASSES = [
     UCBNGramFusion,
     # Upgraded Competitive (73-76)
     IocainePowderPlus, DynamicMixture, HierarchicalBayesian, SelfModelDetector,
+    # Creative Boost / Logic (77-100)
+    PiBot, GoldenRatio, StockBroker, QuantumCollapse, SoundWave,
+    Ackermann, PrimeHunter, CompressionBot, EquilibriumBreaker, DelayedMirror,
+    GeneSequencer, Zodiac, NeuroEvo, GeometryBot,
+    GamblersFallacy, NashStabilizer, StubbornLoser, TraitorMirror, OpponentPersona,
+    ExponentialBackoff, PatternBreaker, SlidingWindowVote, DoubleAgent, CounterStrike,
 ]
+
+
 
 
 def get_all_algorithms() -> list[Algorithm]:

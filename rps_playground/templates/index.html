@@ -7,7 +7,7 @@
     <meta name="description" content="Rock-Paper-Scissors algorithm testing playground with Elo ratings, tournaments, and head-to-head matches.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@700&display=swap" rel="stylesheet">
     <!-- Animation Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/tsparticles-engine@2.12.0/tsparticles.engine.min.js" defer></script>
@@ -100,14 +100,15 @@
             50% { filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.5)); transform: scale(1.04); }
         }
         .logo {
-            font-size: 3rem;
-            font-weight: 800;
+            font-family: 'Outfit', sans-serif;
+            font-size: 3.2rem;
+            font-weight: 700;
             background: linear-gradient(135deg, #06b6d4, #8b5cf6, #ec4899, #06b6d4);
             background-size: 300% 300%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            letter-spacing: -1px;
+            letter-spacing: -0.5px;
             animation: gradientShift 6s ease infinite;
         }
         @keyframes gradientShift {
@@ -788,7 +789,7 @@
             </div>
             <div class="subtitle-row">
                 <p class="subtitle">Algorithm Battle Arena · Elo Rated</p>
-                <span class="algo-badge"><span class="dot"></span>76 bots</span>
+                <span class="algo-badge"><span class="dot"></span>100 bots</span>
             </div>
         </header>
 

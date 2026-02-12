@@ -1,6 +1,6 @@
 # ✊✋✌️ RPS Playground — Algorithm Battle Arena
 
-A modular Rock-Paper-Scissors algorithm testing playground with **76 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
+A modular Rock-Paper-Scissors algorithm testing playground with **100 built-in bots**, **Elo ratings**, **three competition modes**, and a beautiful **dark-themed Web UI**.
 
 ---
 
@@ -67,7 +67,7 @@ Run a single match between any two algorithms.
 
 ### 🏆 Tournament
 
-Full round-robin — every algorithm plays every other algorithm (2850 matches total with 76 bots).
+Full round-robin — every algorithm plays every other algorithm (4950 matches total with 100 bots).
 
 1. **Set rounds per match** and optional **seed**
 2. Click **🏆 RUN**
@@ -76,7 +76,7 @@ Full round-robin — every algorithm plays every other algorithm (2850 matches t
 
 ### 🤖 One vs All
 
-Test a single algorithm against the entire pool of 76 bots.
+Test a single algorithm against the entire pool of 100 bots.
 
 1. **Select your algorithm** from the dropdown
 2. **Set rounds** and optional **seed**
@@ -88,7 +88,7 @@ Test a single algorithm against the entire pool of 76 bots.
 
 ## 🤖 Algorithm Reference
 
-All 76 algorithms explained in detail.
+All 100 algorithms explained in detail.
 
 > **Notation used throughout:**
 > - `counter(X)` = the move that beats X. So `counter(Rock) = Paper`, `counter(Paper) = Scissors`, `counter(Scissors) = Rock`.
@@ -150,17 +150,23 @@ Guarantees a perfectly uniform move distribution, but the fixed pattern is trivi
 
 ---
 
-### 6. Mirror Opponent
-**Type:** Reactive · **Complexity:** Simple
+### 6. Persistent Random 🎭
+**Type:** Randomized · **Complexity:** Simple
 
-Copies whatever the opponent played **last round**. On round 0 (no history), plays randomly.
+Picks a random move and plays it for a **random duration** (5-15 rounds). Then picks a new move and repeats.
 
 ```
-Round 0: Random
-Round t: play opp[t-1]
+Round t:
+  if remaining_duration > 0:
+    play current_move
+  else:
+    current_move = Random()
+    remaining_duration = Random(5, 15)
+    play current_move
 ```
 
-**Example:** If opponent played Rock last round, Mirror plays Rock this round. This leads to interesting dynamics — against itself, it locks into infinite repetition of whatever both played on round 0.
+**Why it works:** It mimics a "stubborn" player but switches unpredictably. This confuses pattern detectors that expect either constant play (Always Rock) or frequent switching (Random).
+
 
 ---
 
@@ -234,23 +240,18 @@ P(opp[t] = j | opp[t-1] = i) = T[i][j] / Σ_k T[i][k]
 
 ---
 
-### 11. Pattern Detector
-**Type:** Analytical · **Complexity:** High
+### 11. Spiral 🌀
+**Type:** Deterministic · **Complexity:** Medium
 
-Searches for the **longest repeating n-gram** in opponent's move history (patterns of length 2 through 5).
+Plays a **double-cycle** pattern: `R, R, P, P, S, S, ...`
 
 ```
-Round t:
-  for length in [5, 4, 3, 2]:
-    pattern = opp[-length:]          ← last `length` moves
-    search for pattern earlier in history
-    if found at position i:
-      predicted = opp[i + length]    ← what came after the pattern last time
-      play counter(predicted)
-  fallback: counter(opp[-1])
+Round:  0  1  2  3  4  5
+Move:   R  R  P  P  S  S
 ```
 
-**Example:** History = `[R, P, S, R, P, S, R, P]`. Looking at the last 3 moves `[S, R, P]` — this pattern appeared before at positions 2-4, and was followed by `S`. So predict Scissors → play Rock.
+**Why it works:** It's a structured pattern that breaks simple "Cycle" detectors (which expect period 3). It also confuses "Anti-Repeat" bots because it repeats every move once.
+
 
 ---
 
@@ -1034,18 +1035,18 @@ Otherwise: frequency counter (window=20) ("play smart")
 
 ---
 
-### 45. Contrarian 🙃
-**Type:** Anti-frequency · **Complexity:** Simple
+### 45. Markov Generator 🎲
+**Type:** Randomized · **Complexity:** High
 
-Tracks its **own** move history and deliberately plays whatever it has used **least** recently.
+Generates moves based on a **random internal Markov chain**. Does **not** look at the opponent at all.
 
-```
-My recent 30 moves: Rock=12, Paper=11, Scissors=7
+1.  Current state: `last_idx` (0, 1, or 2).
+2.  Matrix `M[3][3]`: Randomly generated probabilities of moving from state `i` to `j`.
+3.  Next move: Sampled from `M[last_idx]`.
 
-Contrarian plays: Scissors (least used)
-```
+**Resets:** Every 50 rounds, it generates a **new random matrix**.
 
-**Why it works:** Frequency-based opponents model OUR distribution to predict our next move. They'll predict Rock (our most common). By playing our rarest move, we dodge the prediction.
+**Why it works:** It produces "structured noise". It's not pure random (it has patterns), but the patterns change every 50 rounds and are unrelated to the game state. This can confuse advanced pattern predictors that try to find a logic where none exists.
 
 ---
 
